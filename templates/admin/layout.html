@@ -1,0 +1,474 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="admin-layout">
+    <!-- Panel title -->
+    <div class="panel-title">
+        <span>Panel Administratora</span>
+    </div>
+
+    <!-- Main navigation -->
+    <nav class="main-nav">
+        <a href="{{ url_for('admin.dashboard') }}" 
+           class="nav-item {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+            <i class="fas fa-home"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="{{ url_for('admin.manage_years') }}" 
+           class="nav-item {% if request.endpoint == 'admin.manage_years' %}active{% endif %}">
+            <i class="fas fa-calendar"></i>
+            <span>Roczniki</span>
+        </a>
+        <a href="{{ url_for('admin.manage_admins') }}" 
+           class="nav-item {% if request.endpoint == 'admin.manage_admins' %}active{% endif %}">
+            <i class="fas fa-users"></i>
+            <span>Administratorzy</span>
+        </a>
+        <a href="{{ url_for('admin.manage_logo') }}" 
+           class="nav-item {% if request.endpoint == 'admin.manage_logo' %}active{% endif %}">
+            <i class="fas fa-image"></i>
+            <span>Logo</span>
+        </a>
+        <a href="{{ url_for('admin.view_logs') }}" 
+           class="nav-item {% if request.endpoint == 'admin.view_logs' %}active{% endif %}">
+            <i class="fas fa-history"></i>
+            <span>Logi</span>
+        </a>
+        <a href="{{ url_for('auth.logout') }}" class="nav-item">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Wyloguj</span>
+        </a>
+    </nav>
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+        <a href="{{ url_for('admin.dashboard') }}" class="breadcrumb-item">
+            <i class="fas fa-home"></i>
+            <span>Dashboard</span>
+        </a>
+        {% block breadcrumb %}{% endblock %}
+    </div>
+
+    <!-- Main content -->
+    <main class="admin-content">
+        {% block admin_content %}{% endblock %}
+    </main>
+</div>
+
+<style>
+/* Layout */
+.admin-layout {
+    min-height: 100vh;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-title {
+    background: rgba(17, 24, 39, 0.95);
+    padding: 1rem;
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Navigation */
+.main-nav {
+    background: rgba(17, 24, 39, 0.95);
+    padding: 0.75rem;
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    flex-wrap: wrap;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.nav-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.nav-item.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+    background: rgba(17, 24, 39, 0.95);
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-weight: 500;
+}
+
+.breadcrumb-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+.breadcrumb-item:hover {
+    color: var(--text-primary);
+}
+
+.breadcrumb-separator {
+    color: var(--text-tertiary);
+}
+
+/* Content */
+.admin-content {
+    flex: 1;
+    padding: 2rem;
+    background: var(--bg-primary);
+}
+
+.content-wrapper {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 2rem;
+    color: var(--text-primary);
+    padding: 0 1rem;
+}
+
+/* Cards */
+.card {
+    background: rgba(30, 41, 59, 0.5);
+    border-radius: 1rem;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    margin-bottom: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card-header {
+    padding: 1.25rem;
+    background: rgba(15, 23, 42, 0.7);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.card-content {
+    padding: 1.5rem;
+}
+
+.card-content.p-0 {
+    padding: 0;
+}
+
+/* Tables */
+.table-responsive {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    margin-bottom: 0;
+    border-collapse: collapse;
+}
+
+.table th {
+    background: rgba(15, 23, 42, 0.7);
+    padding: 1rem 1.5rem;
+    text-align: left;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.table td {
+    padding: 1rem 1.5rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.table tr:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Forms */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.1);
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: var(--text-secondary);
+}
+
+.empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: var(--text-tertiary);
+}
+
+.empty-state h4 {
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+/* Badges */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.badge-primary {
+    background: rgba(129, 140, 248, 0.1);
+    color: #818cf8;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .main-nav {
+        padding: 0.5rem;
+        gap: 0.5rem;
+    }
+
+    .nav-item {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .admin-content {
+        padding: 1rem;
+    }
+
+    .page-header {
+        font-size: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .card-header {
+        padding: 1rem;
+    }
+
+    .card-content {
+        padding: 1rem;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.75rem 1rem;
+    }
+}
+
+/* Modals */
+.modal-content {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 1rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.modal-header {
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-primary);
+    padding: 1rem 1.5rem;
+}
+
+.modal-title {
+    color: var(--text-primary);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.modal-body {
+    padding: 1.5rem;
+    color: var(--text-primary);
+}
+
+.modal-footer {
+    background: var(--bg-tertiary);
+    border-top: 1px solid var(--border-primary);
+    padding: 1rem 1.5rem;
+}
+
+.btn-close {
+    color: var(--text-primary);
+    opacity: 0.75;
+    transition: opacity 0.2s;
+}
+
+.btn-close:hover {
+    opacity: 1;
+}
+
+/* Confirmation dialog */
+.modal-confirm {
+    color: var(--text-primary);
+    width: 400px;
+}
+
+.modal-confirm .modal-content {
+    padding: 20px;
+    border-radius: 5px;
+    border: none;
+    text-align: center;
+}
+
+.modal-confirm .modal-header {
+    border-bottom: none;   
+    position: relative;
+}
+
+.modal-confirm h4 {
+    text-align: center;
+    font-size: 26px;
+    margin: 30px 0 -10px;
+}
+
+.modal-confirm .close {
+    position: absolute;
+    top: -5px;
+    right: -2px;
+}
+
+.modal-confirm .modal-body {
+    color: var(--text-secondary);
+}
+
+.modal-confirm .modal-footer {
+    border: none;
+    text-align: center;		
+    border-radius: 5px;
+    font-size: 13px;
+    padding: 10px 15px 25px;
+}
+
+.modal-confirm .modal-footer a {
+    color: var(--text-secondary);
+}
+
+.modal-confirm .btn, .modal-confirm .btn:active {
+    color: #fff;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: all 0.4s;
+    line-height: normal;
+    min-width: 120px;
+    border: none;
+    min-height: 40px;
+    border-radius: 3px;
+    margin: 0 5px;
+}
+
+.modal-confirm .btn-secondary {
+    background: var(--bg-hover);
+}
+
+.modal-confirm .btn-secondary:hover, .modal-confirm .btn-secondary:focus {
+    background: var(--bg-tertiary);
+}
+
+.modal-confirm .btn-danger {
+    background: var(--danger-color);
+}
+
+.modal-confirm .btn-danger:hover, .modal-confirm .btn-danger:focus {
+    background: var(--danger-hover);
+}
+
+/* Tooltip */
+.tooltip {
+    --bs-tooltip-bg: var(--bg-tertiary);
+    --bs-tooltip-color: var(--text-primary);
+}
+</style>
+{% endblock %} 

@@ -1,0 +1,122 @@
+{% extends "layout.html" %}
+
+{% block title %}Wyniki - {{ tournament.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h2>{{ tournament.name }}</h2>
+        <span class="subtitle">Tabela wyników</span>
+    </div>
+    <div class="tournament-status status-{{ tournament.status }}">
+        {{ {'planned': 'Planowany', 'ongoing': 'W trakcie', 'finished': 'Zakończony'}[tournament.status] }}
+    </div>
+</div>
+
+<div class="results-container">
+    <div class="results-table-container">
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th class="position-col">#</th>
+                    <th class="team-col">Drużyna</th>
+                    <th class="numeric-col">M</th>
+                    <th class="numeric-col">W</th>
+                    <th class="numeric-col">R</th>
+                    <th class="numeric-col">P</th>
+                    <th class="numeric-col">BZ</th>
+                    <th class="numeric-col">BS</th>
+                    <th class="numeric-col">RB</th>
+                    <th class="numeric-col points-col">PKT</th>
+                </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+                {% for team in results %}
+                <tr class="team-row" data-team-id="{{ team.id }}">
+                    <td class="position-col">{{ loop.index }}</td>
+                    <td class="team-col">{{ team.name }}</td>
+                    <td class="numeric-col">{{ team.matches }}</td>
+                    <td class="numeric-col">{{ team.wins }}</td>
+                    <td class="numeric-col">{{ team.draws }}</td>
+                    <td class="numeric-col">{{ team.losses }}</td>
+                    <td class="numeric-col">{{ team.goals_scored }}</td>
+                    <td class="numeric-col">{{ team.goals_conceded }}</td>
+                    <td class="numeric-col">{{ team.goals_scored - team.goals_conceded }}</td>
+                    <td class="numeric-col points-col">{{ team.points }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="recent-matches">
+        <h3>Ostatnie mecze</h3>
+        <div class="recent-matches-list">
+            {% for match in recent_matches %}
+            <div class="recent-match">
+                <div class="match-teams">
+                    <span class="team {% if match.team1_score > match.team2_score %}winner{% endif %}">
+                        {{ match.team1.name }}
+                    </span>
+                    <span class="match-score">
+                        {{ match.team1_score }} - {{ match.team2_score }}
+                    </span>
+                    <span class="team {% if match.team2_score > match.team1_score %}winner{% endif %}">
+                        {{ match.team2.name }}
+                    </span>
+                </div>
+                <div class="match-info">
+                    <span class="match-status status-{{ match.status }}">
+                        {{ {'not_started': 'Nie rozpoczęty', 'ongoing': 'W trakcie', 'finished': 'Zakończony'}[match.status] }}
+                    </span>
+                    {% if match.start_time %}
+                    <span class="match-time">{{ match.start_time|format_datetime }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Funkcja do aktualizacji tabeli wyników
+function updateResults() {
+    fetch(`/api/tournament/${tournament_id}/results`)
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('resultsTableBody');
+            tbody.innerHTML = '';
+            
+            data.forEach((team, index) => {
+                const row = document.createElement('tr');
+                row.className = 'team-row';
+                row.dataset.teamId = team.id;
+                
+                row.innerHTML = `
+                    <td class="position-col">${index + 1}</td>
+                    <td class="team-col">${team.name}</td>
+                    <td class="numeric-col">${team.matches}</td>
+                    <td class="numeric-col">${team.wins}</td>
+                    <td class="numeric-col">${team.draws}</td>
+                    <td class="numeric-col">${team.losses}</td>
+                    <td class="numeric-col">${team.goals_scored}</td>
+                    <td class="numeric-col">${team.goals_conceded}</td>
+                    <td class="numeric-col">${team.goals_scored - team.goals_conceded}</td>
+                    <td class="numeric-col points-col">${team.points}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        });
+}
+
+// Aktualizuj wyniki co 30 sekund
+setInterval(updateResults, 30000);
+
+// Aktualizuj wyniki przy załadowaniu strony
+document.addEventListener('DOMContentLoaded', updateResults);
+</script>
+{% endblock %} 

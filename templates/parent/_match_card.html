@@ -1,0 +1,189 @@
+{% set team1_score = match.team1_score if match.team1_score is not none else '-' %}
+{% set team2_score = match.team2_score if match.team2_score is not none else '-' %}
+
+<div class="match-card" data-field="{{ match.field_number }}">
+    <div class="match-card-body">
+        <!-- Match Time -->
+        <div class="match-time">
+            <i class="fas fa-clock text-muted"></i>
+            <span>{{ match.start_time|format_datetime }}</span>
+        </div>
+
+        <!-- Teams and Score -->
+        <div class="match-teams">
+            <div class="team team1">
+                <span class="team-name">{{ match.team1.name }}</span>
+                <span class="team-score">{{ team1_score }}</span>
+            </div>
+            <div class="team team2">
+                <span class="team-score">{{ team2_score }}</span>
+                <span class="team-name">{{ match.team2.name }}</span>
+            </div>
+        </div>
+
+        <!-- Scorers (for finished matches) -->
+        {% if match.status == 'finished' and (match.team1_scorers or match.team2_scorers) %}
+        <div class="match-scorers">
+            <div class="team1-scorers">
+                {% if match.team1_scorers %}
+                    {% for scorer in match.team1_scorers %}
+                    <div class="scorer">
+                        <span class="scorer-name">{{ scorer.player_name }}</span>
+                        <span class="scorer-minute">({{ scorer.minute }}')</span>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+            <div class="team2-scorers">
+                {% if match.team2_scorers %}
+                    {% for scorer in match.team2_scorers %}
+                    <div class="scorer">
+                        <span class="scorer-minute">({{ scorer.minute }}')</span>
+                        <span class="scorer-name">{{ scorer.player_name }}</span>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Match Footer -->
+    <div class="match-card-footer">
+        <div class="match-info">
+            <span class="match-field">
+                <i class="fas fa-map-marker-alt"></i>
+                Boisko {{ match.field_number }}
+            </span>
+        </div>
+        <a href="{{ url_for('parent.match_details', match_id=match.id) }}" class="btn btn-sm btn-light">
+            <i class="fas fa-info-circle"></i>
+            <span class="d-none d-sm-inline ms-1">Szczegóły</span>
+        </a>
+    </div>
+</div>
+
+<style>
+.match-card {
+    background: var(--white);
+    border: var(--border-width) solid var(--border-color);
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.match-card:last-child {
+    margin-bottom: 0;
+}
+
+.match-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--box-shadow-sm);
+}
+
+.match-card-body {
+    padding: 1rem;
+}
+
+.match-time {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+}
+
+.match-teams {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.team {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.team-name {
+    font-weight: 500;
+}
+
+.team-score {
+    font-weight: 600;
+    min-width: 1.5rem;
+    text-align: center;
+}
+
+.match-scorers {
+    margin-top: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.team1-scorers, .team2-scorers {
+    max-width: 45%;
+}
+
+.scorer {
+    display: flex;
+    gap: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.team2-scorers .scorer {
+    justify-content: flex-end;
+}
+
+.scorer-minute {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.match-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: var(--light);
+    border-top: var(--border-width) solid var(--border-color);
+    border-bottom-left-radius: var(--border-radius);
+    border-bottom-right-radius: var(--border-radius);
+}
+
+.match-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.match-field i {
+    margin-right: 0.375rem;
+}
+
+@media (max-width: 575.98px) {
+    .match-card-body {
+        padding: 0.75rem;
+    }
+
+    .match-card-footer {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .team-name {
+        font-size: 0.9375rem;
+    }
+
+    .match-scorers {
+        font-size: 0.8125rem;
+    }
+}
+</style> 

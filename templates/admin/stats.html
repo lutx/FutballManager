@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Statystyki systemu{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Statystyki systemu</h1>
+        </div>
+    </div>
+
+    <!-- System stats -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Zasoby systemowe</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Użycie CPU</label>
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar"
+                                 data-value="{{ stats.system.cpu_percent }}"
+                                 aria-valuenow="{{ stats.system.cpu_percent }}"
+                                 aria-valuemin="0" aria-valuemax="100">
+                                {{ stats.system.cpu_percent }}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Użycie pamięci</label>
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar"
+                                 data-value="{{ stats.system.memory_percent }}"
+                                 aria-valuenow="{{ stats.system.memory_percent }}"
+                                 aria-valuemin="0" aria-valuemax="100">
+                                {{ stats.system.memory_percent }}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Użycie dysku</label>
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar"
+                                 data-value="{{ stats.system.disk_percent }}"
+                                 aria-valuenow="{{ stats.system.disk_percent }}"
+                                 aria-valuemin="0" aria-valuemax="100">
+                                {{ stats.system.disk_percent }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Application stats -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Statystyki aplikacji</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Aktywni użytkownicy
+                            <span class="badge bg-primary rounded-pill">{{ stats.app.active_users }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Aktywne turnieje
+                            <span class="badge bg-success rounded-pill">{{ stats.app.active_tournaments }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Trwające mecze
+                            <span class="badge bg-warning rounded-pill">{{ stats.app.ongoing_matches }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize progress bars
+        document.querySelectorAll('.progress-bar').forEach(function(bar) {
+            const value = bar.dataset.value;
+            bar.style.width = value + '%';
+            
+            // Add color classes based on value
+            if (value > 90) {
+                bar.classList.add('bg-danger');
+            } else if (value > 70) {
+                bar.classList.add('bg-warning');
+            } else {
+                bar.classList.add('bg-success');
+            }
+        });
+    });
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .progress {
+        height: 25px;
+    }
+    .progress-bar {
+        transition: width 0.6s ease;
+        min-width: 2em;
+    }
+</style>
+{% endblock %} 

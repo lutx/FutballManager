@@ -1,0 +1,460 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<nav class="parent-nav">
+    <div class="container">
+        <div class="nav-content">
+            <div class="nav-brand">
+                {% if logo_path %}
+                <img src="{{ url_for('static', filename=logo_path) }}" alt="Logo klubu" class="nav-logo">
+                {% endif %}
+                <span class="nav-title">Panel Rodzica</span>
+            </div>
+            
+            <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                <i class="fas fa-futbol parent-menu-icon"></i>
+            </button>
+            
+            <div class="mobile-menu" id="mobileMenu">
+                <div class="menu-header">
+                    <span class="menu-title">Menu</span>
+                    <button class="close-menu" onclick="toggleMobileMenu()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="menu-content">
+                    <div class="menu-section">
+                        <div class="menu-items">
+                            <a href="{{ url_for('parent.select_year') }}" 
+                               class="menu-item {% if request.endpoint == 'parent.select_year' %}active{% endif %}">
+                                <i class="fas fa-home"></i>
+                                <span>Strona główna</span>
+                            </a>
+                            <a href="{{ url_for('parent.tournaments') }}" 
+                               class="menu-item {% if request.endpoint == 'parent.tournaments' %}active{% endif %}">
+                                <i class="fas fa-trophy"></i>
+                                <span>Turnieje</span>
+                            </a>
+                            <a href="{{ url_for('auth.logout') }}" class="menu-item">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span>Wyloguj</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="menu-overlay" id="menuOverlay" onclick="toggleMobileMenu()"></div>
+            
+            <div class="nav-links desktop-only">
+                <a href="{{ url_for('parent.select_year') }}" 
+                   class="nav-link {% if request.endpoint == 'parent.select_year' %}active{% endif %}">
+                    <i class="fas fa-home"></i>
+                    <span>Strona główna</span>
+                </a>
+                <a href="{{ url_for('parent.tournaments') }}" 
+                   class="nav-link {% if request.endpoint == 'parent.tournaments' %}active{% endif %}">
+                    <i class="fas fa-trophy"></i>
+                    <span>Turnieje</span>
+                </a>
+                <a href="{{ url_for('auth.logout') }}" class="nav-link">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Wyloguj</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<main class="parent-content">
+    {% block parent_content %}{% endblock %}
+</main>
+
+<style>
+:root {
+    --primary-color: #4f46e5;
+    --primary-hover: #4338ca;
+    --danger-color: #ef4444;
+    --danger-hover: #dc2626;
+    --success-color: #22c55e;
+    --success-hover: #16a34a;
+    --warning-color: #f59e0b;
+    --warning-hover: #d97706;
+    --white: #ffffff;
+}
+
+.parent-nav {
+    background: rgba(17, 24, 39, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+}
+
+.nav-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+}
+
+.nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nav-logo {
+    height: 1.75rem;
+    width: auto;
+}
+
+.nav-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+}
+
+.nav-link:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.nav-link.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.nav-link i {
+    font-size: 1rem;
+}
+
+.parent-nav .mobile-menu-toggle {
+    display: none;
+    background: transparent;
+    border: none;
+    padding: 0.375rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 0.375rem;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+    color: white;
+}
+
+.parent-nav .parent-menu-icon {
+    color: white !important;
+    font-size: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    fill: white;
+}
+
+.parent-nav .mobile-menu-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 768px) {
+    .parent-nav .mobile-menu-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+    }
+
+    .parent-nav .parent-menu-icon {
+        color: #ffffff !important;
+    }
+
+    .nav-links {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        background: rgba(17, 24, 39, 0.98);
+        padding: 0.125rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+        gap: 1px;
+    }
+
+    .nav-links.show {
+        display: flex;
+    }
+
+    .nav-link {
+        width: 100%;
+        padding: 0.25rem 0.5rem;
+        justify-content: flex-start;
+        font-weight: 500;
+        font-size: 0.8125rem;
+        min-height: 28px;
+    }
+
+    .nav-link i {
+        width: 1.125rem;
+        text-align: center;
+        font-size: 0.875rem;
+        margin-right: 0.25rem;
+    }
+
+    .nav-link:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .nav-link.active {
+        background: var(--primary-color);
+    }
+}
+
+@media (max-width: 360px) {
+    .nav-content {
+        padding: 0.375rem;
+    }
+    
+    .nav-title {
+        font-size: 0.9375rem;
+    }
+    
+    .nav-logo {
+        height: 1.5rem;
+    }
+    
+    .parent-nav .parent-menu-icon {
+        font-size: 1.25rem;
+    }
+}
+
+/* Hamburger menu styles */
+.mobile-menu {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    width: 85%;
+    max-width: 320px;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.98);
+    backdrop-filter: blur(10px);
+    transition: right 0.3s ease;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-menu.active {
+    right: 0;
+}
+
+.menu-header {
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.menu-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.close-menu {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.close-menu:hover {
+    color: #ffffff;
+}
+
+.menu-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem 0;
+}
+
+.menu-section {
+    padding: 0 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.menu-section-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+.menu-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.menu-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    transform: translateX(4px);
+}
+
+.menu-item.active {
+    background: #4f46e5;
+    color: #ffffff;
+}
+
+.menu-item i {
+    font-size: 1.1rem;
+    width: 1.5rem;
+    text-align: center;
+}
+
+.menu-footer {
+    padding: 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    z-index: 999;
+}
+
+.menu-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Animacja dla elementów menu */
+.menu-item {
+    opacity: 0;
+    transform: translateX(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.mobile-menu.active .menu-item {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.mobile-menu.active .menu-item:nth-child(1) { transition-delay: 0.1s; }
+.mobile-menu.active .menu-item:nth-child(2) { transition-delay: 0.15s; }
+.mobile-menu.active .menu-item:nth-child(3) { transition-delay: 0.2s; }
+.mobile-menu.active .menu-item:nth-child(4) { transition-delay: 0.25s; }
+.mobile-menu.active .menu-item:nth-child(5) { transition-delay: 0.3s; }
+
+/* Dodatkowe style dla małych ekranów */
+@media (max-width: 360px) {
+    .mobile-menu {
+        width: 100%;
+        max-width: none;
+    }
+
+    .menu-item {
+        padding: 0.65rem 0.85rem;
+        font-size: 0.9rem;
+    }
+
+    .menu-item i {
+        font-size: 1rem;
+    }
+
+    .menu-section {
+        padding: 0 1rem;
+    }
+}
+
+/* Haptic feedback dla przycisków menu */
+.menu-item:active {
+    transform: scale(0.98);
+}
+
+/* Wskaźnik aktywnej sekcji */
+.menu-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 4px;
+    height: 60%;
+    background: #ffffff;
+    border-radius: 0 4px 4px 0;
+}
+
+/* Dodanie klasy dla menu desktopowego */
+.desktop-only {
+    display: flex;
+}
+
+@media (max-width: 768px) {
+    .desktop-only {
+        display: none;
+    }
+    
+    .parent-nav .mobile-menu-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+    }
+}
+</style>
+
+<script>
+function toggleMobileMenu() {
+    const mobileMenu = document.getElementById('mobileMenu');
+    const menuOverlay = document.getElementById('menuOverlay');
+    mobileMenu.classList.toggle('active');
+    menuOverlay.classList.toggle('active');
+}
+</script>
+{% endblock %} 

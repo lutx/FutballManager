@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+
+{% block title %}Błąd serwera{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-icon">500</div>
+    <h1>Ups! Coś poszło nie tak</h1>
+    <div class="error-message">
+        <p>Przepraszamy, wystąpił wewnętrzny błąd serwera.</p>
+        <p>Nasi technicy zostali powiadomieni i pracują nad rozwiązaniem problemu.</p>
+    </div>
+    <div class="error-actions">
+        <a href="{{ url_for('index') }}" class="primary-button">
+            <span class="icon">🏠</span>
+            Wróć do strony głównej
+        </a>
+        <a href="javascript:history.back()" class="secondary-button">
+            <span class="icon">⬅️</span>
+            Wróć do poprzedniej strony
+        </a>
+    </div>
+</div>
+{% endblock %} 

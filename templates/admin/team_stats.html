@@ -1,0 +1,302 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ team.name }} - Statystyki{% endblock %}
+
+{% block breadcrumb %}
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-calendar"></i>
+    <a href="{{ url_for('admin.years') }}">Lata</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-trophy"></i>
+    <a href="{{ url_for('admin.tournaments', year=tournament.year) }}">Turnieje {{ tournament.year }}</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-info-circle"></i>
+    <a href="{{ url_for('admin.tournament_details', tournament_id=tournament.id) }}">{{ tournament.name }}</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item active">
+    <i class="fas fa-users"></i>
+    <span>{{ team.name }}</span>
+</span>
+{% endblock %}
+
+{% block admin_content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <i class="fas fa-users text-primary"></i>
+        <span>Statystyki drużyny {{ team.name }}</span>
+    </div>
+
+    <!-- Statystyki ogólne -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-chart-pie"></i>
+                Statystyki ogólne
+            </h3>
+        </div>
+        <div class="card-content">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-futbol"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value">{{ stats.matches_played }}</div>
+                        <div class="stat-label">Rozegrane mecze</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value">{{ stats.wins }}</div>
+                        <div class="stat-label">Wygrane</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-handshake"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value">{{ stats.draws }}</div>
+                        <div class="stat-label">Remisy</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-times"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value">{{ stats.losses }}</div>
+                        <div class="stat-label">Przegrane</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-bullseye"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value">{{ stats.goals_for }}</div>
+                        <div class="stat-label">Bramki strzelone</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value">{{ stats.goals_against }}</div>
+                        <div class="stat-label">Bramki stracone</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-balance-scale"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value">{{ stats.goals_for - stats.goals_against }}</div>
+                        <div class="stat-label">Różnica bramek</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value">{{ stats.points }}</div>
+                        <div class="stat-label">Punkty</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Historia meczy -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-history"></i>
+                Historia meczy
+            </h3>
+        </div>
+        <div class="card-content p-0">
+            {% if matches %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Przeciwnik</th>
+                            <th>Wynik</th>
+                            <th>Status</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for match in matches %}
+                        <tr>
+                            <td>{{ match.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-users text-primary"></i>
+                                    {% if match.team1_id == team.id %}
+                                        {{ match.team2.name }}
+                                    {% else %}
+                                        {{ match.team1.name }}
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                {% if match.score1 is not none and match.score2 is not none %}
+                                    {% if match.team1_id == team.id %}
+                                        {{ match.score1 }} : {{ match.score2 }}
+                                    {% else %}
+                                        {{ match.score2 }} : {{ match.score1 }}
+                                    {% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge badge-{{ match.status }}">
+                                    {% if match.status == 'planned' %}
+                                        <i class="fas fa-calendar"></i>
+                                        Zaplanowany
+                                    {% elif match.status == 'in_progress' %}
+                                        <i class="fas fa-play"></i>
+                                        W trakcie
+                                    {% elif match.status == 'completed' %}
+                                        <i class="fas fa-check"></i>
+                                        Zakończony
+                                    {% elif match.status == 'cancelled' %}
+                                        <i class="fas fa-times"></i>
+                                        Anulowany
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('admin.match_stats', match_id=match.id) }}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-chart-bar"></i>
+                                    Statystyki
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-history"></i>
+                </div>
+                <h4>Brak meczy</h4>
+                <p>Ta drużyna nie rozegrała jeszcze żadnych meczy.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.stat-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.stat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    background: var(--primary-color);
+    border-radius: 0.5rem;
+    color: white;
+    font-size: 1.25rem;
+}
+
+.stat-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+/* Status badges */
+.badge-planned {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.badge-in_progress {
+    background: rgba(234, 179, 8, 0.1);
+    color: #eab308;
+}
+
+.badge-completed {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+}
+
+.badge-cancelled {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .stat-item {
+        padding: 0.75rem;
+    }
+
+    .stat-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        font-size: 1rem;
+    }
+
+    .stat-value {
+        font-size: 1.25rem;
+    }
+}
+</style>
+{% endblock %} 

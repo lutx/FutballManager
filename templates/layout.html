@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="pl" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}{% endblock %} - Football Team Management</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.ico') }}">
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+    
+    <style>
+        :root {
+            /* Kolory podstawowe */
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --danger-color: #ef4444;
+            --danger-hover: #dc2626;
+            --success-color: #22c55e;
+            --success-hover: #16a34a;
+            --warning-color: #f59e0b;
+            --warning-hover: #d97706;
+
+            /* Tło i kolory tekstu */
+            --bg-primary: #0f172a;
+            --bg-secondary: rgba(30, 41, 59, 0.7);
+            --bg-tertiary: rgba(15, 23, 42, 0.7);
+            --bg-hover: rgba(51, 65, 85, 0.7);
+
+            /* Kolory tekstu */
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-tertiary: #64748b;
+
+            /* Kolory obramowań */
+            --border-primary: rgba(148, 163, 184, 0.1);
+
+            /* Kolory tła dla statusów */
+            --warning-bg: rgba(245, 158, 11, 0.1);
+            --primary-bg: rgba(79, 70, 229, 0.1);
+            --success-bg: rgba(34, 197, 94, 0.1);
+            --danger-bg: rgba(239, 68, 68, 0.1);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Layout i nawigacja */
+        .navbar {
+            background: rgba(17, 24, 39, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 1rem;
+            border: 1px solid var(--border-primary);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .card-header {
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-primary);
+            padding: 1rem;
+        }
+
+        .card-title {
+            color: var(--text-primary);
+            margin: 0;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        /* Forms */
+        .form-control {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            color: var(--text-primary);
+            border-radius: 0.5rem;
+            padding: 0.625rem 0.75rem;
+        }
+
+        .form-control:focus {
+            background: var(--bg-tertiary);
+            border-color: var(--primary-color);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 2px var(--primary-bg);
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.625rem 1.25rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            text-align: center;
+            justify-content: center;
+            min-height: 2.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            border: none;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            border: none;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: var(--danger-hover);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            border: none;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: var(--success-hover);
+        }
+
+        /* Tables */
+        .table {
+            color: var(--text-primary);
+            margin-bottom: 0;
+        }
+
+        .table thead th {
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-primary);
+            color: var(--text-secondary);
+            font-weight: 500;
+            padding: 0.75rem 1rem;
+            white-space: nowrap;
+        }
+
+        .table tbody td {
+            border-bottom: 1px solid var(--border-primary);
+            padding: 1rem;
+            vertical-align: middle;
+        }
+
+        /* Alerts */
+        .alert {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.25rem;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            z-index: 1000;
+            min-width: 300px;
+            max-width: 500px;
+            animation: slideIn 0.3s ease forwards;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: none;
+            color: white;
+        }
+
+        .alert-success {
+            background-color: var(--success-color);
+        }
+
+        .alert-danger {
+            background-color: var(--danger-color);
+        }
+
+        .alert-warning {
+            background-color: var(--warning-color);
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.35rem 0.65rem;
+            font-weight: 500;
+            font-size: 0.75rem;
+            border-radius: 9999px;
+            line-height: 1;
+        }
+
+        .badge-primary {
+            background: var(--primary-bg);
+            color: var(--primary-color);
+        }
+
+        .badge-success {
+            background: var(--success-bg);
+            color: var(--success-color);
+        }
+
+        .badge-warning {
+            background: var(--warning-bg);
+            color: var(--warning-color);
+        }
+
+        .badge-danger {
+            background: var(--danger-bg);
+            color: var(--danger-color);
+        }
+
+        /* Tournament status badges */
+        .badge.badge-planned { background-color: var(--warning-bg); color: var(--warning-color); }
+        .badge.badge-in-progress { background-color: var(--primary-bg); color: var(--primary-color); }
+        .badge.badge-completed { background-color: var(--success-bg); color: var(--success-color); }
+        .badge.badge-cancelled { background-color: var(--danger-bg); color: var(--danger-color); }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-hover);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-color);
+        }
+
+        /* Animations */
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    {% block content %}{% endblock %}
+    
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- CSRF Token for AJAX -->
+    <script>
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        // Add CSRF token to all fetch requests
+        const originalFetch = window.fetch;
+        window.fetch = function() {
+            let [resource, config] = arguments;
+            if(config === undefined) {
+                config = {};
+            }
+            if(config.headers === undefined) {
+                config.headers = {};
+            }
+            config.headers['X-CSRFToken'] = csrfToken;
+            return originalFetch(resource, config);
+        };
+        
+        // Add CSRF token to all XMLHttpRequest
+        const originalXhr = window.XMLHttpRequest;
+        function newXhr() {
+            const xhr = new originalXhr();
+            const originalOpen = xhr.open;
+            xhr.open = function() {
+                const result = originalOpen.apply(this, arguments);
+                this.setRequestHeader('X-CSRFToken', csrfToken);
+                return result;
+            };
+            return xhr;
+        }
+        window.XMLHttpRequest = newXhr;
+    </script>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html> 

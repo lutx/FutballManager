@@ -1,0 +1,501 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ tournament.name }} - Szczegóły{% endblock %}
+
+{% block breadcrumb %}
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-calendar"></i>
+    <a href="{{ url_for('admin.years') }}">Lata</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-trophy"></i>
+    <a href="{{ url_for('admin.tournaments', year=tournament.year) }}">Turnieje {{ tournament.year }}</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item active">
+    <i class="fas fa-info-circle"></i>
+    <span>{{ tournament.name }}</span>
+</span>
+{% endblock %}
+
+{% block admin_content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <i class="fas fa-trophy text-primary"></i>
+        <span>{{ tournament.name }}</span>
+        <p class="text-muted mb-0">
+            <i class="fas fa-map-marker-alt"></i> {{ tournament.address }}
+        </p>
+    </div>
+
+    <!-- Informacje o turnieju -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-info-circle"></i>
+                Informacje o turnieju
+            </h3>
+            <div class="card-actions">
+                {% if tournament.status == 'planned' %}
+                <form method="POST" action="{{ url_for('admin.start_tournament', tournament_id=tournament.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-success" onclick="return confirm('Czy na pewno chcesz rozpocząć turniej?')">
+                        <i class="fas fa-play"></i>
+                        Rozpocznij turniej
+                    </button>
+                </form>
+                {% elif tournament.status == 'in_progress' %}
+                <form method="POST" action="{{ url_for('admin.end_tournament', tournament_id=tournament.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-warning" onclick="return confirm('Czy na pewno chcesz zakończyć turniej?')">
+                        <i class="fas fa-flag-checkered"></i>
+                        Zakończ turniej
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">
+                        <i class="fas fa-calendar"></i>
+                        Rok
+                    </div>
+                    <div class="info-value">{{ tournament.year }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">
+                        <i class="fas fa-flag"></i>
+                        Status
+                    </div>
+                    <div class="info-value">
+                        <span class="badge badge-{{ tournament.status }}">
+                            {% if tournament.status == 'planned' %}
+                                <i class="fas fa-calendar"></i>
+                                Zaplanowany
+                            {% elif tournament.status == 'in_progress' %}
+                                <i class="fas fa-play"></i>
+                                W trakcie
+                            {% elif tournament.status == 'completed' %}
+                                <i class="fas fa-check"></i>
+                                Zakończony
+                            {% elif tournament.status == 'cancelled' %}
+                                <i class="fas fa-times"></i>
+                                Anulowany
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">
+                        <i class="fas fa-hashtag"></i>
+                        Liczba boisk
+                    </div>
+                    <div class="info-value">{{ tournament.fields_count }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">
+                        <i class="fas fa-clock"></i>
+                        Długość meczu
+                    </div>
+                    <div class="info-value">{{ tournament.match_length }} min</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">
+                        <i class="fas fa-pause"></i>
+                        Długość przerwy
+                    </div>
+                    <div class="info-value">{{ tournament.break_length }} min</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">
+                        <i class="fas fa-users"></i>
+                        Liczba drużyn
+                    </div>
+                    <div class="info-value">{{ tournament.teams|length }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">
+                        <i class="fas fa-futbol"></i>
+                        Liczba meczy
+                    </div>
+                    <div class="info-value">{{ tournament.matches|length }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drużyny -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-users"></i>
+                Drużyny
+            </h3>
+            <div class="card-actions">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTeamModal">
+                    <i class="fas fa-plus"></i>
+                    Dodaj drużynę
+                </button>
+            </div>
+        </div>
+        <div class="card-content p-0">
+            {% if tournament.teams %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Nazwa</th>
+                            <th>Mecze</th>
+                            <th>Punkty</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for team in tournament.teams %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-users text-primary"></i>
+                                    {{ team.name }}
+                                </div>
+                            </td>
+                            <td>{{ team.matches|length }}</td>
+                            <td>{{ team.points }}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <a href="{{ url_for('admin.team_stats', team_id=team.id) }}" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-chart-bar"></i>
+                                        Statystyki
+                                    </a>
+                                    <form method="POST" action="{{ url_for('admin.delete_team', team_id=team.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Czy na pewno chcesz usunąć tę drużynę?')">
+                                            <i class="fas fa-trash"></i>
+                                            Usuń
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <h4>Brak drużyn</h4>
+                <p>Nie dodano jeszcze żadnych drużyn do tego turnieju.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Mecze -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-futbol"></i>
+                Mecze
+            </h3>
+            <div class="card-actions">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMatchModal">
+                    <i class="fas fa-plus"></i>
+                    Dodaj mecz
+                </button>
+            </div>
+        </div>
+        <div class="card-content p-0">
+            {% if tournament.matches %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Drużyny</th>
+                            <th>Data</th>
+                            <th>Boisko</th>
+                            <th>Wynik</th>
+                            <th>Status</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for match in tournament.matches %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-futbol text-primary"></i>
+                                    {{ match.team1.name }} vs {{ match.team2.name }}
+                                </div>
+                            </td>
+                            <td>{{ match.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ match.field_number }}</td>
+                            <td>
+                                {% if match.score1 is not none and match.score2 is not none %}
+                                {{ match.score1 }} : {{ match.score2 }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge badge-{{ match.status }}">
+                                    {% if match.status == 'planned' %}
+                                        <i class="fas fa-calendar"></i>
+                                        Zaplanowany
+                                    {% elif match.status == 'in_progress' %}
+                                        <i class="fas fa-play"></i>
+                                        W trakcie
+                                    {% elif match.status == 'completed' %}
+                                        <i class="fas fa-check"></i>
+                                        Zakończony
+                                    {% elif match.status == 'cancelled' %}
+                                        <i class="fas fa-times"></i>
+                                        Anulowany
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group">
+                                    <a href="{{ url_for('admin.match_stats', match_id=match.id) }}" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-chart-bar"></i>
+                                        Statystyki
+                                    </a>
+                                    <form method="POST" action="{{ url_for('admin.delete_match', match_id=match.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Czy na pewno chcesz usunąć ten mecz?')">
+                                            <i class="fas fa-trash"></i>
+                                            Usuń
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-futbol"></i>
+                </div>
+                <h4>Brak meczy</h4>
+                <p>Nie dodano jeszcze żadnych meczy do tego turnieju.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal dodawania drużyny -->
+<div class="modal fade" id="addTeamModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus"></i>
+                    Dodaj drużynę
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.add_team', tournament_id=tournament.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-users"></i>
+                            Nazwa drużyny
+                        </label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i>
+                        Anuluj
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i>
+                        Dodaj
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal dodawania meczu -->
+<div class="modal fade" id="addMatchModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus"></i>
+                    Dodaj mecz
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.add_match', tournament_id=tournament.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-users"></i>
+                            Drużyna 1
+                        </label>
+                        <select name="team1_id" class="form-control" required>
+                            <option value="">Wybierz drużynę</option>
+                            {% for team in tournament.teams %}
+                            <option value="{{ team.id }}">{{ team.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group mt-3">
+                        <label class="form-label">
+                            <i class="fas fa-users"></i>
+                            Drużyna 2
+                        </label>
+                        <select name="team2_id" class="form-control" required>
+                            <option value="">Wybierz drużynę</option>
+                            {% for team in tournament.teams %}
+                            <option value="{{ team.id }}">{{ team.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group mt-3">
+                        <label class="form-label">
+                            <i class="fas fa-calendar"></i>
+                            Data i godzina
+                        </label>
+                        <input type="datetime-local" name="start_time" class="form-control" required>
+                    </div>
+                    <div class="form-group mt-3">
+                        <label class="form-label">
+                            <i class="fas fa-hashtag"></i>
+                            Numer boiska
+                        </label>
+                        <input type="number" name="field_number" class="form-control" min="1" max="{{ tournament.fields_count }}" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i>
+                        Anuluj
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i>
+                        Dodaj
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.info-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.info-value {
+    font-size: 1.125rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.btn-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Status badges */
+.badge-planned {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.badge-in_progress {
+    background: rgba(234, 179, 8, 0.1);
+    color: #eab308;
+}
+
+.badge-completed {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+}
+
+.badge-cancelled {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+/* Modal styles */
+.modal-content {
+    background: var(--dark-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+@media (max-width: 768px) {
+    .info-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .btn-group {
+        flex-direction: column;
+    }
+
+    .btn-group .btn {
+        width: 100%;
+    }
+
+    .card-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .card-actions {
+        width: 100%;
+    }
+
+    .card-actions .btn {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %} 

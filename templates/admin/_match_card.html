@@ -1,0 +1,459 @@
+{% set match_status_class = 'match-card ' + match.status %}
+{% if match.status == 'ongoing' %}
+    {% set match_status_class = match_status_class + ' match-ongoing' %}
+{% endif %}
+<div class="{{match_status_class}}" data-match-id="{{ match.id }}">
+    <div class="match-content">
+        <div class="match-teams">
+            <div class="team team1">
+                <span class="team-name">{{ match.team1.name }}</span>
+                {% if match.status == 'ongoing' %}
+                <div class="score-controls">
+                    <button class="score-btn" onclick="updateScore('{{ match.id }}', 1, 'subtract')" data-tooltip="Odejmij punkt" {% if match.team1_score <= 0 %}disabled{% endif %}>
+                        <i class="fas fa-minus"></i>
+                    </button>
+                    <button class="score-btn" onclick="updateScore('{{ match.id }}', 1, 'add')" data-tooltip="Dodaj punkt">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+            <div class="match-score">
+                {% if match.status == 'planned' %}
+                    <span class="score-pending">vs</span>
+                {% else %}
+                    <span class="score-value">{{ match.team1_score }} : {{ match.team2_score }}</span>
+                {% endif %}
+            </div>
+            <div class="team team2">
+                <span class="team-name">{{ match.team2.name }}</span>
+                {% if match.status == 'ongoing' %}
+                <div class="score-controls">
+                    <button class="score-btn" onclick="updateScore('{{ match.id }}', 2, 'subtract')" data-tooltip="Odejmij punkt" {% if match.team2_score <= 0 %}disabled{% endif %}>
+                        <i class="fas fa-minus"></i>
+                    </button>
+                    <button class="score-btn" onclick="updateScore('{{ match.id }}', 2, 'add')" data-tooltip="Dodaj punkt">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="match-info">
+            <div class="match-time">
+                <i class="fas fa-clock"></i>
+                <span>{{ match.start_time.strftime('%H:%M') if match.start_time else 'Czas nie ustawiony' }}</span>
+            </div>
+            {% if match.status == 'ongoing' %}
+            <div class="match-timer" 
+                 data-match-id="{{ match.id }}"
+                 data-start-time="{{ match.start_time.isoformat() if match.start_time else '' }}" 
+                 data-match-length="{{ match.match_length|default(20) }}" 
+                 data-is-paused="{{ match.is_timer_paused|default(false)|string|lower }}">
+                <i class="fas fa-stopwatch"></i>
+                <span class="timer-value">00:00</span>
+                <button class="timer-control" onclick="toggleMatchTimer('{{ match.id }}')" title="Zatrzymaj/Wznów">
+                    <i class="fas {% if match.is_timer_paused|default(false) %}fa-play{% else %}fa-pause{% endif %}"></i>
+                </button>
+            </div>
+            {% endif %}
+            <div class="match-actions">
+                {% if match.status == 'planned' and tournament.status == 'ongoing' %}
+                    <button type="button" class="btn btn-primary start-match" 
+                            data-match-id="{{ match.id }}" 
+                            title="Rozpocznij mecz">
+                        <i class="fas fa-play"></i>
+                        <span>Rozpocznij</span>
+                    </button>
+                {% elif match.status == 'ongoing' %}
+                    <form method="POST" action="{{ url_for('end_match', match_id=match.id) }}" style="display: contents;">
+                        {{ form.csrf_token }}
+                        <button type="submit" class="btn btn-danger" title="Zakończ mecz">
+                            <i class="fas fa-stop"></i>
+                            <span>Zakończ</span>
+                        </button>
+                    </form>
+                {% endif %}
+                {% if match.status == 'planned' %}
+                    <form method="POST" action="{{ url_for('delete_match', match_id=match.id) }}" style="display: contents;">
+                        {{ form.csrf_token }}
+                        <button type="submit" class="btn btn-danger" title="Usuń mecz" onclick="return confirm('Czy na pewno chcesz usunąć ten mecz?');">
+                            <i class="fas fa-trash"></i>
+                            <span>Usuń</span>
+                        </button>
+                    </form>
+                    <button type="button" class="btn btn-warning" 
+                            data-action="edit-match"
+                            data-match-id="{{ match.id }}"
+                            data-team1-id="{{ match.team1.id }}"
+                            data-team2-id="{{ match.team2.id }}"
+                            data-start-time="{{ match.start_time.strftime('%Y-%m-%dT%H:%M') if match.start_time else '' }}"
+                            {% if tournament.number_of_fields > 1 %}
+                            data-field-number="{{ match.field_number }}"
+                            {% endif %}
+                            title="Edytuj mecz">
+                        <i class="fas fa-edit"></i>
+                        <span>Edytuj</span>
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div> 
+
+<script>
+function updateScore(matchId, teamNumber, action) {
+    // Pobierz elementy przed wysłaniem żądania
+    const matchCard = document.querySelector(`.match-card[data-match-id="${matchId}"]`);
+    if (!matchCard) {
+        console.error('Match card not found');
+        showNotification('danger', 'Nie można znaleźć karty meczu');
+        return;
+    }
+
+    const scoreElement = matchCard.querySelector('.score-value');
+    if (!scoreElement) {
+        console.error('Score element not found');
+        showNotification('danger', 'Nie można znaleźć elementu wyniku');
+        return;
+    }
+
+    // Pobierz token CSRF
+    const csrfToken = document.querySelector('input[name="csrf_token"]');
+    if (!csrfToken) {
+        console.error('CSRF token not found');
+        showNotification('danger', 'Błąd bezpieczeństwa: brak tokenu CSRF');
+        return;
+    }
+
+    // Wyłącz przyciski na czas aktualizacji
+    const buttons = matchCard.querySelectorAll('.score-btn');
+    buttons.forEach(btn => btn.disabled = true);
+
+    // Dodaj klasę animacji do elementu wyniku
+    scoreElement.classList.add('score-updating');
+
+    fetch('/admin/matches/quick-update-score', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken.value
+        },
+        body: JSON.stringify({
+            match_id: matchId,
+            team_number: teamNumber,
+            action: action
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Aktualizuj wyświetlany wynik z animacją
+            scoreElement.classList.add('score-changed');
+            scoreElement.textContent = `${data.team1_score} : ${data.team2_score}`;
+            
+            setTimeout(() => {
+                scoreElement.classList.remove('score-changed');
+            }, 300);
+            
+            // Aktualizuj stan przycisków
+            const team1MinusBtn = matchCard.querySelector('.team1 .score-btn[data-tooltip="Odejmij punkt"]');
+            const team2MinusBtn = matchCard.querySelector('.team2 .score-btn[data-tooltip="Odejmij punkt"]');
+            
+            if (team1MinusBtn) team1MinusBtn.disabled = data.team1_score <= 0;
+            if (team2MinusBtn) team2MinusBtn.disabled = data.team2_score <= 0;
+            
+            // Włącz z powrotem przyciski dodawania
+            const team1AddBtn = matchCard.querySelector('.team1 .score-btn[data-tooltip="Dodaj punkt"]');
+            const team2AddBtn = matchCard.querySelector('.team2 .score-btn[data-tooltip="Dodaj punkt"]');
+            if (team1AddBtn) team1AddBtn.disabled = false;
+            if (team2AddBtn) team2AddBtn.disabled = false;
+            
+            showNotification('success', 'Wynik został zaktualizowany');
+        } else {
+            // Włącz z powrotem wszystkie przyciski w przypadku błędu
+            buttons.forEach(btn => btn.disabled = false);
+            showNotification('danger', data.message || 'Wystąpił błąd podczas aktualizacji wyniku');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Włącz z powrotem wszystkie przyciski w przypadku błędu
+        buttons.forEach(btn => btn.disabled = false);
+        showNotification('danger', 'Wystąpił błąd podczas aktualizacji wyniku');
+    })
+    .finally(() => {
+        // Usuń klasę animacji
+        scoreElement.classList.remove('score-updating');
+    });
+}
+</script>
+
+<style>
+.score-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.score-btn:hover:not(:disabled) {
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
+}
+
+.score-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.score-btn i {
+    font-size: 0.8rem;
+}
+
+.score-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.match-teams {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 1rem;
+    align-items: start;
+    margin-bottom: 0.75rem;
+}
+
+.team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.team1 {
+    text-align: right;
+}
+
+.team2 {
+    text-align: left;
+}
+
+.match-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--bg-tertiary);
+    border-radius: 0.5rem;
+    min-width: 100px;
+}
+
+.score-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.score-pending {
+    font-size: 1.25rem;
+    color: var(--text-secondary);
+}
+
+.match-timer {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background: var(--primary-bg);
+    border-radius: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.match-timer.overtime {
+    background: var(--warning-bg);
+    color: var(--warning-color);
+}
+
+.match-timer.paused {
+    background: var(--warning-bg);
+    color: var(--warning-color);
+    border: 1px dashed var(--warning-color);
+}
+
+.timer-value {
+    font-family: monospace;
+    font-weight: 600;
+    min-width: 4ch;
+}
+
+.timer-control {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    padding: 0;
+    cursor: pointer;
+    color: inherit;
+    transition: all 0.2s ease;
+}
+
+.timer-control:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.timer-control i {
+    font-size: 0.8rem;
+}
+
+@media (max-width: 768px) {
+    .score-btn {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .score-btn i {
+        font-size: 0.7rem;
+    }
+}
+
+/* Score update animations */
+.score-value {
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.score-updating {
+    opacity: 0.7;
+}
+
+.score-changed {
+    transform: scale(1.1);
+    color: var(--color-success);
+}
+
+/* Score controls */
+.score-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+.score-controls.updating {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.score-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.score-btn:hover:not(:disabled) {
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.score-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.score-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Match score display */
+.match-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    background: var(--bg-tertiary);
+    border-radius: 0.5rem;
+    min-width: 100px;
+    transition: all 0.2s ease;
+}
+
+.match-score:hover {
+    background: var(--bg-quaternary);
+}
+
+.score-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: center;
+    min-width: 5ch;
+}
+
+/* Team sections */
+.team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    transition: opacity 0.2s ease;
+}
+
+.team.updating {
+    opacity: 0.5;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .match-score {
+        padding: 0.5rem 1rem;
+        min-width: 80px;
+    }
+    
+    .score-value {
+        font-size: 1.25rem;
+    }
+    
+    .score-btn {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .score-btn i {
+        font-size: 0.7rem;
+    }
+}
+</style> 

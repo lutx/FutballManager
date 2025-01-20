@@ -1,0 +1,112 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ tournament.name }} - Statystyki{% endblock %}
+
+{% block breadcrumb %}
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-calendar"></i>
+    <a href="{{ url_for('admin.years') }}">Lata</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-trophy"></i>
+    <a href="{{ url_for('admin.tournaments', year=tournament.year) }}">Turnieje {{ tournament.year }}</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-info-circle"></i>
+    <a href="{{ url_for('admin.tournament_details', tournament_id=tournament.id) }}">{{ tournament.name }}</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item active">
+    <i class="fas fa-chart-bar"></i>
+    <span>Statystyki</span>
+</span>
+{% endblock %}
+
+{% block admin_content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <i class="fas fa-chart-bar text-primary"></i>
+        <span>Statystyki turnieju {{ tournament.name }}</span>
+    </div>
+
+    <!-- Tabela wyników -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-table"></i>
+                Tabela wyników
+            </h3>
+        </div>
+        <div class="card-content p-0">
+            {% if standings %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Pozycja</th>
+                            <th>Drużyna</th>
+                            <th>Mecze</th>
+                            <th>Wygrane</th>
+                            <th>Remisy</th>
+                            <th>Przegrane</th>
+                            <th>Bramki strzelone</th>
+                            <th>Bramki stracone</th>
+                            <th>Różnica bramek</th>
+                            <th>Punkty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for standing in standings %}
+                        <tr>
+                            <td>{{ standing.position }}</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-users text-primary"></i>
+                                    {{ standing.team.name }}
+                                </div>
+                            </td>
+                            <td>{{ standing.history.stats.matches_played }}</td>
+                            <td>{{ standing.history.stats.wins }}</td>
+                            <td>{{ standing.history.stats.draws }}</td>
+                            <td>{{ standing.history.stats.losses }}</td>
+                            <td>{{ standing.history.stats.goals_for }}</td>
+                            <td>{{ standing.history.stats.goals_against }}</td>
+                            <td>{{ standing.history.stats.goals_for - standing.history.stats.goals_against }}</td>
+                            <td>{{ standing.history.stats.points }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-table"></i>
+                </div>
+                <h4>Brak wyników</h4>
+                <p>Nie rozegrano jeszcze żadnych meczy w tym turnieju.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.table td {
+    vertical-align: middle;
+}
+
+.table td:first-child {
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .table-responsive {
+        margin: 0;
+    }
+}
+</style>
+{% endblock %} 

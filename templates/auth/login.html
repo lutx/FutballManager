@@ -1,0 +1,125 @@
+{% extends "layout.html" %}
+
+{% block title %}Logowanie{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center align-items-center min-vh-100">
+        <div class="col-md-6">
+            <div class="card">
+                {% if logo_path %}
+                <div class="text-center mt-4 mb-2">
+                    <img src="{{ url_for('static', filename=logo_path) }}" alt="Logo" class="img-fluid" style="max-height: 100px;">
+                </div>
+                {% endif %}
+                
+                <div class="card-header">
+                    <h4 class="card-title text-center mb-0">
+                        {% if role_selected == 'admin' %}
+                            <i class="fas fa-user-shield me-2"></i>Logowanie administratora
+                        {% elif role_selected == 'parent' %}
+                            <i class="fas fa-user me-2"></i>Logowanie rodzica
+                        {% else %}
+                            <i class="fas fa-users me-2"></i>Wybierz rolę
+                        {% endif %}
+                    </h4>
+                </div>
+                
+                <div class="card-body">
+                    {% if not role_selected %}
+                    <div class="d-grid gap-3">
+                        <a href="{{ url_for('auth.login', role='admin') }}" class="btn btn-primary">
+                            <i class="fas fa-user-shield me-2"></i>Zaloguj jako administrator
+                        </a>
+                        <a href="{{ url_for('auth.login', role='parent') }}" class="btn btn-success">
+                            <i class="fas fa-user me-2"></i>Zaloguj jako rodzic
+                        </a>
+                    </div>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('auth.login', role=role_selected) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <div class="form-group mb-4">
+                            <label class="form-label">
+                                <i class="fas fa-envelope me-2"></i>{{ form.email.label.text }}
+                            </label>
+                            {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""), placeholder="Wprowadź adres email") }}
+                            {% for error in form.email.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="form-group mb-4">
+                            <label class="form-label">
+                                <i class="fas fa-lock me-2"></i>{{ form.password.label.text }}
+                            </label>
+                            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Wprowadź hasło") }}
+                            {% for error in form.password.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="form-check mb-4">
+                            {{ form.remember_me(class="form-check-input") }}
+                            <label class="form-check-label" for="{{ form.remember_me.id }}">
+                                <i class="fas fa-clock me-2"></i>{{ form.remember_me.label.text }}
+                            </label>
+                        </div>
+                        
+                        <div class="d-grid gap-3">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-sign-in-alt me-2"></i>Zaloguj się
+                            </button>
+                            <a href="{{ url_for('auth.login') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Powrót do wyboru roli
+                            </a>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.btn {
+    font-size: 1rem;
+    padding: 0.75rem 1.5rem;
+}
+
+.form-control {
+    font-size: 1rem;
+    padding: 0.75rem 1rem;
+}
+
+.form-check-label {
+    color: var(--text-secondary);
+}
+
+.btn-outline-secondary {
+    border-color: var(--border-primary);
+    color: var(--text-secondary);
+}
+
+.btn-outline-secondary:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-primary);
+    color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+    
+    .btn {
+        padding: 0.625rem 1.25rem;
+    }
+}
+</style>
+{% endblock %} 

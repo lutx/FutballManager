@@ -1,0 +1,66 @@
+/* Status Badges Base */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.badge i {
+    font-size: 0.75rem;
+}
+
+/* Tournament Status Badges */
+.badge-planned {
+    background: var(--warning-bg);
+    color: var(--warning-color);
+}
+
+.badge-in-progress,
+.badge-ongoing {
+    background: var(--primary-bg);
+    color: var(--primary-color);
+}
+
+.badge-completed {
+    background: var(--success-bg);
+    color: var(--success-color);
+}
+
+.badge-cancelled {
+    background: var(--danger-bg);
+    color: var(--danger-color);
+}
+
+/* Generic Status Badges */
+.badge-primary {
+    background: var(--primary-bg);
+    color: var(--primary-color);
+}
+
+.badge-success {
+    background: var(--success-bg);
+    color: var(--success-color);
+}
+
+.badge-warning {
+    background: var(--warning-bg);
+    color: var(--warning-color);
+}
+
+.badge-danger {
+    background: var(--danger-bg);
+    color: var(--danger-color);
+}
+
+.badge-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.badge-sm i {
+    font-size: 0.625rem;
+} 

@@ -1,0 +1,1349 @@
+from flask import render_template, redirect, url_for, flash, request, session, abort, jsonify, Response, stream_with_context
+from flask_login import login_user, login_required, logout_user, current_user
+from models import User, Year, Tournament, Team, Match, SystemLog, SystemSettings
+from extensions import db, bcrypt
+from sqlalchemy.exc import SQLAlchemyError
+import os
+from werkzeug.utils import secure_filename
+import datetime
+from flask_wtf.csrf import CSRFProtect
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField
+from wtforms.validators import DataRequired, Email
+import json
+import queue
+import threading
+
+class LoginForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Hasło', validators=[DataRequired()])
+
+# Global queue for match updates
+match_updates = queue.Queue()
+
+def init_views(app):
+    csrf = CSRFProtect(app)
+    
+    @app.route('/')
+    def index():
+        return redirect(url_for('login'))
+
+    @app.route('/login', methods=['GET', 'POST'])
+    @app.route('/login/<role>', methods=['GET', 'POST'])
+    def login(role=None):
+        if current_user.is_authenticated:
+            if current_user.role == 'admin':
+                return redirect(url_for('admin_dashboard'))
+            else:
+                logout_user()
+                flash('Nieprawidłowa rola użytkownika', 'danger')
+                return redirect(url_for('login'))
+            
+        form = LoginForm()
+        
+        if role == 'admin':
+            if form.validate_on_submit():
+                user = User.query.filter_by(email=form.email.data).first()
+                if user and bcrypt.check_password_hash(user.password, form.password.data):
+                    if user.role != 'admin':
+                        flash('Brak uprawnień administratora', 'danger')
+                        return redirect(url_for('login'))
+                    login_user(user)
+                    return redirect(url_for('admin_dashboard'))
+                flash('Nieprawidłowy email lub hasło', 'danger')
+            return render_template('login.html', role_selected='admin', form=form)
+        
+        return render_template('login.html', role_selected=None, form=form)
+
+    @app.route('/logout')
+    def logout():
+        try:
+            # Wyloguj użytkownika jeśli jest zalogowany jako admin
+            if current_user.is_authenticated:
+                # Dodaj log wylogowania dla admina
+                log = SystemLog(
+                    type='info',
+                    user=current_user.email,
+                    action='logout',
+                    details='Wylogowanie z systemu'
+                )
+                db.session.add(log)
+                db.session.commit()
+                logout_user()
+                flash('Wylogowano pomyślnie', 'success')
+            
+            # Wyczyść sesję rodzica jeśli istnieje
+            if session.get('role'):
+                session.pop('role', None)
+                flash('Wylogowano pomyślnie', 'success')
+            
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Błąd wylogowania: {str(e)}')
+            flash('Wystąpił błąd podczas wylogowania', 'danger')
+            return redirect(url_for('login'))
+
+    @app.route('/parent/years')
+    def parent_select_year():
+        try:
+            years = Year.query.all()
+            
+            # Pobierz liczbę drużyn dla każdego rocznika
+            for year in years:
+                year.teams_count = db.session.query(Team).join(Tournament).filter(Tournament.year_id == year.id).count()
+                year.tournaments_count = Tournament.query.filter_by(year_id=year.id).count()
+            
+            return render_template('parent/select_year.html', years=years)
+        except Exception as e:
+            app.logger.error(f'Błąd podczas ładowania roczników: {str(e)}')
+            flash('Wystąpił błąd podczas ładowania danych', 'danger')
+            return redirect(url_for('login'))
+
+    @app.route('/parent/years/<int:year_id>')
+    def parent_dashboard(year_id):
+        try:
+            year = Year.query.get_or_404(year_id)
+            tournaments = Tournament.query.filter_by(year_id=year_id).all()
+            logo_setting = SystemSettings.query.filter_by(key='logo_path').first()
+            logo_path = logo_setting.value if logo_setting else None
+            
+            return render_template('parent/tournaments.html',
+                                 year=year,
+                                 tournaments=tournaments,
+                                 logo_path=logo_path)
+        except Exception as e:
+            app.logger.error(f'Błąd podczas ładowania turniejów: {str(e)}')
+            flash('Wystąpił błąd podczas ładowania danych', 'danger')
+            return redirect(url_for('parent_select_year'))
+
+    @app.route('/admin/dashboard')
+    @login_required
+    def admin_dashboard():
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień do dostępu do panelu admina', 'danger')
+            return redirect(url_for('login'))
+            
+        try:
+            stats = {
+                'years_count': Year.query.count(),
+                'tournaments_count': Tournament.query.count(),
+                'teams_count': Team.query.count(),
+                'active_matches': Match.query.filter_by(status='ongoing').count()
+            }
+            active_tournaments = Tournament.query.filter_by(status='ongoing').all()
+            recent_matches = Match.query.order_by(Match.start_time.desc()).limit(5).all()
+            form = EmptyForm()
+            
+            return render_template('admin/dashboard.html', 
+                                stats=stats,
+                                active_tournaments=active_tournaments,
+                                recent_matches=recent_matches,
+                                form=form)
+        except SQLAlchemyError as e:
+            app.logger.error(f'Błąd bazy danych: {str(e)}')
+            flash('Wystąpił błąd podczas ładowania danych', 'danger')
+            return redirect(url_for('login'))
+        except Exception as e:
+            app.logger.error(f'Nieoczekiwany błąd: {str(e)}')
+            flash('Wystąpił nieoczekiwany błąd', 'danger')
+            return redirect(url_for('login'))
+
+    @app.route('/admin/manage')
+    @login_required
+    def manage_admins():
+        if not current_user.is_authenticated or not current_user.is_primary_admin:
+            flash('Brak uprawnień do zarządzania administratorami', 'danger')
+            return redirect(url_for('admin_dashboard'))
+        
+        try:
+            admins = User.query.filter_by(role='admin').all()
+            return render_template('admin/manage_admins.html', admins=admins)
+        except Exception as e:
+            app.logger.error(f'Błąd podczas ładowania listy adminów: {str(e)}')
+            flash('Wystąpił błąd podczas ładowania danych', 'danger')
+            return redirect(url_for('admin_dashboard'))
+
+    @app.route('/admin/manage/add', methods=['POST'])
+    @login_required
+    def add_admin():
+        if not current_user.is_primary_admin:
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('admin_dashboard'))
+        
+        try:
+            email = request.form.get('email')
+            password = request.form.get('password')
+            
+            if not email or not password:
+                flash('Wszystkie pola są wymagane', 'danger')
+                return redirect(url_for('manage_admins'))
+            
+            if User.query.filter_by(email=email).first():
+                flash('Administrator o tym adresie email już istnieje', 'danger')
+                return redirect(url_for('manage_admins'))
+            
+            hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+            new_admin = User(
+                email=email,
+                password=hashed_password,
+                role='admin',
+                is_primary_admin=False
+            )
+            
+            db.session.add(new_admin)
+            db.session.commit()
+            
+            flash('Administrator został dodany pomyślnie', 'success')
+            return redirect(url_for('manage_admins'))
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Błąd podczas dodawania admina: {str(e)}')
+            flash('Wystąpił błąd podczas dodawania administratora', 'danger')
+            return redirect(url_for('manage_admins'))
+
+    @app.route('/admin/manage/delete/<int:admin_id>', methods=['POST'])
+    @login_required
+    def delete_admin(admin_id):
+        if not current_user.is_primary_admin:
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('admin_dashboard'))
+        
+        try:
+            admin = User.query.get_or_404(admin_id)
+            
+            if admin.is_primary_admin:
+                flash('Nie można usunąć głównego administratora', 'danger')
+                return redirect(url_for('manage_admins'))
+            
+            db.session.delete(admin)
+            db.session.commit()
+            
+            flash('Administrator został usunięty', 'success')
+            return redirect(url_for('manage_admins'))
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Błąd podczas usuwania admina: {str(e)}')
+            flash('Wystąpił błąd podczas usuwania administratora', 'danger')
+            return redirect(url_for('manage_admins'))
+
+    @app.route('/admin/logo', methods=['GET', 'POST'])
+    @login_required
+    def manage_logo():
+        if not current_user.is_authenticated or not current_user.is_primary_admin:
+            flash('Brak uprawnień do zarządzania logo', 'danger')
+            return redirect(url_for('admin_dashboard'))
+        
+        try:
+            if request.method == 'POST':
+                if 'logo' not in request.files:
+                    flash('Nie wybrano pliku', 'danger')
+                    return redirect(request.url)
+                
+                file = request.files['logo']
+                if file.filename == '':
+                    flash('Nie wybrano pliku', 'danger')
+                    return redirect(request.url)
+                
+                if file and allowed_file(file.filename):
+                    # Usuń stare logo jeśli istnieje
+                    old_logo = SystemSettings.query.filter_by(key='logo_path').first()
+                    if old_logo and old_logo.value:
+                        try:
+                            os.remove(os.path.join(app.root_path, 'static', old_logo.value))
+                        except:
+                            pass
+                    
+                    # Zapisz nowe logo
+                    filename = secure_filename(f"logo_{int(datetime.datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+                    file.save(os.path.join(app.root_path, 'static', 'uploads', filename))
+                    
+                    # Zapisz ścieżkę do logo w ustawieniach
+                    if old_logo:
+                        old_logo.value = f'uploads/{filename}'
+                    else:
+                        setting = SystemSettings(key='logo_path', value=f'uploads/{filename}')
+                        db.session.add(setting)
+                    
+                    db.session.commit()
+                    flash('Logo zostało zaktualizowane', 'success')
+                    return redirect(url_for('manage_logo'))
+                else:
+                    flash('Niedozwolony format pliku', 'danger')
+            
+            logo_path = SystemSettings.query.filter_by(key='logo_path').first()
+            return render_template('admin/manage_logo.html', logo_path=logo_path.value if logo_path else None)
+            
+        except Exception as e:
+            app.logger.error(f'Błąd podczas zarządzania logo: {str(e)}')
+            flash('Wystąpił błąd podczas zarządzania logo', 'danger')
+            return redirect(url_for('admin_dashboard'))
+
+    @app.route('/admin/logo/delete', methods=['POST'])
+    @login_required
+    def delete_logo():
+        if not current_user.is_authenticated or not current_user.is_primary_admin:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        try:
+            logo_setting = SystemSettings.query.filter_by(key='logo_path').first()
+            if logo_setting and logo_setting.value:
+                try:
+                    os.remove(os.path.join(app.root_path, 'static', logo_setting.value))
+                except:
+                    pass
+                
+                logo_setting.value = None
+                db.session.commit()
+                flash('Logo zostało usunięte', 'success')
+                return jsonify({'success': True})
+            return jsonify({'error': 'No logo'}), 404
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Błąd podczas usuwania logo: {str(e)}')
+            return jsonify({'error': str(e)}), 500
+
+    def allowed_file(filename):
+        ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+    # Obsługa błędu 404
+    @app.errorhandler(404)
+    def not_found_error(error):
+        return render_template('errors/404.html'), 404
+
+    # Obsługa błędu 500
+    @app.errorhandler(500)
+    def internal_error(error):
+        db.session.rollback()
+        return render_template('errors/500.html'), 500 
+
+    @app.route('/admin/logs')
+    @login_required
+    def view_logs():
+        if not current_user.is_authenticated or not current_user.is_primary_admin:
+            flash('Brak uprawnień do przeglądania logów', 'danger')
+            return redirect(url_for('admin_dashboard'))
+        
+        try:
+            page = request.args.get('page', 1, type=int)
+            per_page = 20  # Zmniejszamy ilość logów na stronę dla lepszej czytelności
+            
+            # Filtrowanie
+            log_type = request.args.get('type')
+            action = request.args.get('action')
+            user = request.args.get('user')
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            
+            query = SystemLog.query
+            
+            if log_type:
+                query = query.filter_by(type=log_type)
+            if action:
+                query = query.filter_by(action=action)
+            if user:
+                query = query.filter(SystemLog.user.ilike(f'%{user}%'))
+            if start_date:
+                query = query.filter(SystemLog.timestamp >= datetime.datetime.strptime(start_date, '%Y-%m-%d'))
+            if end_date:
+                # Dodajemy 23:59:59 do daty końcowej, aby uwzględnić cały dzień
+                end_datetime = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+                end_datetime = end_datetime.replace(hour=23, minute=59, second=59)
+                query = query.filter(SystemLog.timestamp <= end_datetime)
+            
+            # Sortowanie od najnowszych
+            query = query.order_by(SystemLog.timestamp.desc())
+            
+            # Paginacja
+            logs = query.paginate(page=page, per_page=per_page)
+            
+            return render_template('admin/logs.html', 
+                                logs=logs)
+            
+        except Exception as e:
+            app.logger.error(f'Błąd podczas ładowania logów: {str(e)}')
+            flash('Wystąpił błąd podczas ładowania logów', 'danger')
+            return redirect(url_for('admin_dashboard'))
+
+    @app.route('/admin/logs/clear', methods=['POST'])
+    @login_required
+    def clear_logs():
+        if not current_user.is_authenticated or not current_user.is_primary_admin:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        try:
+            # Usuń wszystkie logi starsze niż 30 dni
+            thirty_days_ago = datetime.datetime.now() - datetime.timedelta(days=30)
+            SystemLog.query.filter(SystemLog.timestamp < thirty_days_ago).delete()
+            db.session.commit()
+            
+            flash('Stare logi zostały usunięte', 'success')
+            return redirect(url_for('view_logs'))
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Błąd podczas czyszczenia logów: {str(e)}')
+            flash('Wystąpił błąd podczas czyszczenia logów', 'danger')
+            return redirect(url_for('view_logs'))
+
+    @app.route('/admin/years')
+    @login_required
+    def manage_years():
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        try:
+            years = Year.query.order_by(Year.year.desc()).all()
+            form = EmptyForm()
+            return render_template('admin/years.html', years=years, form=form)
+        except Exception as e:
+            app.logger.error(f'Błąd podczas ładowania roczników: {str(e)}')
+            flash('Wystąpił błąd podczas ładowania danych', 'danger')
+            return redirect(url_for('admin_dashboard'))
+
+    @app.route('/admin/years/add', methods=['POST'])
+    @login_required
+    def add_year():
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                year = request.form.get('year')
+                if not year:
+                    flash('Rok jest wymagany', 'danger')
+                    return redirect(url_for('manage_years'))
+                
+                if Year.query.filter_by(year=year).first():
+                    flash('Ten rocznik już istnieje', 'danger')
+                    return redirect(url_for('manage_years'))
+                
+                new_year = Year(year=year)
+                db.session.add(new_year)
+                db.session.commit()
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='info',
+                    user=current_user.email,
+                    action='add_year',
+                    details=f'Dodano nowy rocznik: {year}'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                flash('Rocznik został dodany', 'success')
+                return redirect(url_for('manage_years'))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas dodawania rocznika: {str(e)}')
+                flash('Wystąpił błąd podczas dodawania rocznika', 'danger')
+                return redirect(url_for('manage_years'))
+        
+        return redirect(url_for('manage_years'))
+
+    @app.route('/admin/years/<int:year_id>/delete', methods=['POST'])
+    @login_required
+    def delete_year(year_id):
+        if not current_user.is_authenticated or not current_user.is_primary_admin:
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('manage_years'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                year = Year.query.get_or_404(year_id)
+                
+                # Usuń wszystkie powiązane turnieje
+                for tournament in year.tournaments:
+                    # Usuń wszystkie mecze w turnieju
+                    Match.query.filter_by(tournament_id=tournament.id).delete()
+                    # Usuń wszystkie drużyny w turnieju
+                    Team.query.filter_by(tournament_id=tournament.id).delete()
+                
+                # Usuń turnieje
+                Tournament.query.filter_by(year_id=year_id).delete()
+                
+                # Usuń rocznik
+                db.session.delete(year)
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='warning',
+                    user=current_user.email,
+                    action='delete_year',
+                    details=f'Usunięto rocznik: {year.year}'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                flash('Rocznik został usunięty', 'success')
+                return redirect(url_for('manage_years'))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas usuwania rocznika: {str(e)}')
+                flash('Wystąpił błąd podczas usuwania rocznika', 'danger')
+                return redirect(url_for('manage_years'))
+        
+        return redirect(url_for('manage_years'))
+
+    @app.route('/admin/years/<int:year_id>/tournaments')
+    @login_required
+    def year_tournaments(year_id):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        year = Year.query.get_or_404(year_id)
+        tournaments = Tournament.query.filter_by(year_id=year_id).order_by(Tournament.id.desc()).all()
+        form = EmptyForm()
+        
+        return render_template('admin/year_tournaments.html', 
+                             year=year, 
+                             tournaments=tournaments, 
+                             form=form)
+
+    @app.route('/admin/tournaments/add', methods=['POST'])
+    @login_required
+    def add_tournament():
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                year_id = request.form.get('year_id')
+                name = request.form.get('name')
+                
+                if not all([year_id, name]):
+                    flash('Wszystkie pola są wymagane', 'danger')
+                    return redirect(url_for('year_tournaments', year_id=year_id))
+                
+                new_tournament = Tournament(
+                    name=name,
+                    year_id=year_id,
+                    status='planned'
+                )
+                db.session.add(new_tournament)
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='info',
+                    user=current_user.email,
+                    action='add_tournament',
+                    details=f'Dodano nowy turniej: {name}'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                flash('Turniej został dodany', 'success')
+                return redirect(url_for('year_tournaments', year_id=year_id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas dodawania turnieju: {str(e)}')
+                flash('Wystąpił błąd podczas dodawania turnieju', 'danger')
+                return redirect(url_for('year_tournaments', year_id=request.form.get('year_id')))
+        
+        return redirect(url_for('year_tournaments', year_id=request.form.get('year_id')))
+
+    @app.route('/admin/tournaments/<int:tournament_id>/teams')
+    @login_required
+    def tournament_teams(tournament_id):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        try:
+            tournament = Tournament.query.get_or_404(tournament_id)
+            teams = Team.query.filter_by(tournament_id=tournament_id).all()
+            form = EmptyForm()
+            return render_template('admin/tournament_teams.html', 
+                                 tournament=tournament, 
+                                 teams=teams,
+                                 form=form)
+        except Exception as e:
+            app.logger.error(f'Błąd podczas ładowania drużyn: {str(e)}')
+            flash('Wystąpił błąd podczas ładowania danych', 'danger')
+            return redirect(url_for('year_tournaments', year_id=tournament.year_id))
+
+    @app.route('/admin/teams/add', methods=['POST'])
+    @login_required
+    def add_team():
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                tournament_id = request.form.get('tournament_id')
+                name = request.form.get('name')
+                
+                if not name:
+                    flash('Nazwa drużyny jest wymagana', 'danger')
+                    return redirect(url_for('tournament_teams', tournament_id=tournament_id))
+                
+                tournament = Tournament.query.get_or_404(tournament_id)
+                if tournament.status != 'planned':
+                    flash('Można dodawać drużyny tylko do zaplanowanych turniejów', 'danger')
+                    return redirect(url_for('tournament_teams', tournament_id=tournament_id))
+                
+                new_team = Team(
+                    name=name,
+                    tournament_id=tournament_id
+                )
+                db.session.add(new_team)
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='info',
+                    user=current_user.email,
+                    action='add_team',
+                    details=f'Dodano nową drużynę: {name} do turnieju: {tournament.name}'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                flash('Drużyna została dodana', 'success')
+                return redirect(url_for('tournament_teams', tournament_id=tournament_id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas dodawania drużyny: {str(e)}')
+                flash('Wystąpił błąd podczas dodawania drużyny', 'danger')
+                return redirect(url_for('tournament_teams', tournament_id=request.form.get('tournament_id')))
+        
+        return redirect(url_for('tournament_teams', tournament_id=request.form.get('tournament_id')))
+
+    @app.route('/admin/teams/<int:team_id>/delete', methods=['POST'])
+    @login_required
+    def delete_team(team_id):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                team = Team.query.get_or_404(team_id)
+                tournament = team.tournament
+                
+                if tournament.status != 'planned':
+                    flash('Można usuwać drużyny tylko z zaplanowanych turniejów', 'danger')
+                    return redirect(url_for('tournament_teams', tournament_id=tournament.id))
+                
+                # Usuń wszystkie mecze drużyny
+                Match.query.filter(
+                    (Match.team1_id == team_id) | (Match.team2_id == team_id)
+                ).delete()
+                
+                # Usuń drużynę
+                db.session.delete(team)
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='warning',
+                    user=current_user.email,
+                    action='delete_team',
+                    details=f'Usunięto drużynę: {team.name} z turnieju: {tournament.name}'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                flash('Drużyna została usunięta', 'success')
+                return redirect(url_for('tournament_teams', tournament_id=tournament.id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas usuwania drużyny: {str(e)}')
+                flash('Wystąpił błąd podczas usuwania drużyny', 'danger')
+                return redirect(url_for('tournament_teams', tournament_id=tournament.id))
+        
+        return redirect(url_for('tournament_teams', tournament_id=tournament.id))
+
+    @app.route('/admin/tournaments/<int:tournament_id>/matches')
+    @login_required
+    def tournament_matches(tournament_id):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        try:
+            tournament = Tournament.query.get_or_404(tournament_id)
+            # Sortowanie meczów po czasie rozpoczęcia
+            matches = Match.query.filter_by(tournament_id=tournament_id).order_by(Match.start_time.asc()).all()
+            teams = Team.query.filter_by(tournament_id=tournament_id).all()
+            form = EmptyForm()
+            return render_template('admin/tournament_matches.html', 
+                                 tournament=tournament,
+                                 matches=matches,
+                                 teams=teams,
+                                 form=form)
+        except Exception as e:
+            app.logger.error(f'Błąd podczas ładowania meczów: {str(e)}')
+            flash('Wystąpił błąd podczas ładowania danych', 'danger')
+            return redirect(url_for('year_tournaments', year_id=tournament.year_id))
+
+    @app.route('/admin/tournaments/<int:tournament_id>/results')
+    @login_required
+    def tournament_results(tournament_id):
+        try:
+            tournament = Tournament.query.get_or_404(tournament_id)
+            matches = Match.query.filter_by(tournament_id=tournament_id).all()
+            teams = Team.query.filter_by(tournament_id=tournament_id).all()
+            
+            # Oblicz statystyki dla każdej drużyny
+            team_stats = []
+            for team in teams:
+                stats = {
+                    'team': team,
+                    'matches_played': 0,
+                    'wins': 0,
+                    'draws': 0,
+                    'losses': 0,
+                    'goals_for': 0,
+                    'goals_against': 0,
+                    'points': 0
+                }
+                
+                # Przeanalizuj wszystkie mecze drużyny
+                for match in Match.query.filter(
+                    (Match.team1_id == team.id) | (Match.team2_id == team.id),
+                    Match.tournament_id == tournament_id,
+                    Match.status == 'finished'
+                ).all():
+                    stats['matches_played'] += 1
+                    
+                    if match.team1_id == team.id:
+                        stats['goals_for'] += match.team1_score or 0
+                        stats['goals_against'] += match.team2_score or 0
+                        if match.team1_score > match.team2_score:
+                            stats['wins'] += 1
+                            stats['points'] += 3
+                        elif match.team1_score == match.team2_score:
+                            stats['draws'] += 1
+                            stats['points'] += 1
+                        else:
+                            stats['losses'] += 1
+                    else:
+                        stats['goals_for'] += match.team2_score or 0
+                        stats['goals_against'] += match.team1_score or 0
+                        if match.team2_score > match.team1_score:
+                            stats['wins'] += 1
+                            stats['points'] += 3
+                        elif match.team1_score == match.team2_score:
+                            stats['draws'] += 1
+                            stats['points'] += 1
+                        else:
+                            stats['losses'] += 1
+                
+                team_stats.append(stats)
+            
+            # Posortuj drużyny według punktów
+            team_stats.sort(key=lambda x: (-x['points'], -(x['goals_for'] - x['goals_against']), -x['goals_for']))
+            
+            return render_template('admin/tournament_results.html',
+                                 tournament=tournament,
+                                 team_stats=team_stats)
+        except Exception as e:
+            app.logger.error(f'Błąd podczas ładowania wyników: {str(e)}')
+            flash('Wystąpił błąd podczas ładowania danych', 'danger')
+            return redirect(url_for('year_tournaments', year_id=tournament.year_id))
+
+    @app.route('/parent/tournaments')
+    def parent_tournaments():
+        try:
+            tournaments = Tournament.query.filter_by(status='ongoing').all()
+            logo_setting = SystemSettings.query.filter_by(key='logo_path').first()
+            logo_path = logo_setting.value if logo_setting else None
+            
+            return render_template('parent/tournaments.html',
+                                 tournaments=tournaments,
+                                 logo_path=logo_path)
+        except Exception as e:
+            app.logger.error(f'Błąd podczas ładowania turniejów: {str(e)}')
+            flash('Wystąpił błąd podczas ładowania danych', 'danger')
+            return redirect(url_for('parent_dashboard'))
+
+    @app.route('/parent/tournament/<int:tournament_id>')
+    def parent_tournament_details(tournament_id):
+        try:
+            tournament = Tournament.query.get_or_404(tournament_id)
+            matches = Match.query.filter_by(tournament_id=tournament_id).order_by(Match.start_time).all()
+            teams = Team.query.filter_by(tournament_id=tournament_id).all()
+            
+            # Oblicz statystyki dla każdej drużyny
+            team_stats = []
+            for team in teams:
+                stats = {
+                    'team': team,
+                    'matches_played': 0,
+                    'wins': 0,
+                    'draws': 0,
+                    'losses': 0,
+                    'goals_for': 0,
+                    'goals_against': 0,
+                    'points': 0
+                }
+                
+                # Przeanalizuj wszystkie mecze drużyny
+                for match in Match.query.filter(
+                    (Match.team1_id == team.id) | (Match.team2_id == team.id),
+                    Match.tournament_id == tournament_id,
+                    Match.status == 'finished'
+                ).all():
+                    stats['matches_played'] += 1
+                    
+                    if match.team1_id == team.id:
+                        stats['goals_for'] += match.team1_score or 0
+                        stats['goals_against'] += match.team2_score or 0
+                        if match.team1_score > match.team2_score:
+                            stats['wins'] += 1
+                            stats['points'] += 3
+                        elif match.team1_score == match.team2_score:
+                            stats['draws'] += 1
+                            stats['points'] += 1
+                        else:
+                            stats['losses'] += 1
+                    else:
+                        stats['goals_for'] += match.team2_score or 0
+                        stats['goals_against'] += match.team1_score or 0
+                        if match.team2_score > match.team1_score:
+                            stats['wins'] += 1
+                            stats['points'] += 3
+                        elif match.team1_score == match.team2_score:
+                            stats['draws'] += 1
+                            stats['points'] += 1
+                        else:
+                            stats['losses'] += 1
+                
+                team_stats.append(stats)
+            
+            # Posortuj drużyny według punktów
+            team_stats.sort(key=lambda x: (-x['points'], -(x['goals_for'] - x['goals_against']), -x['goals_for']))
+            
+            logo_setting = SystemSettings.query.filter_by(key='logo_path').first()
+            logo_path = logo_setting.value if logo_setting else None
+            
+            return render_template('parent/tournament_details.html',
+                                 tournament=tournament,
+                                 matches=matches,
+                                 team_stats=team_stats,
+                                 logo_path=logo_path)
+        except Exception as e:
+            app.logger.error(f'Błąd podczas ładowania szczegółów turnieju: {str(e)}')
+            flash('Wystąpił błąd podczas ładowania danych', 'danger')
+            return redirect(url_for('parent_tournaments'))
+
+    @app.route('/admin/tournaments/<int:tournament_id>/start', methods=['POST'])
+    @login_required
+    def start_tournament(tournament_id):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                tournament = Tournament.query.get_or_404(tournament_id)
+                if tournament.status != 'planned':
+                    flash('Turniej nie może zostać rozpoczęty', 'danger')
+                    return redirect(url_for('tournament_matches', tournament_id=tournament_id))
+                
+                if len(tournament.teams) < 2:
+                    flash('Potrzebne są co najmniej 2 drużyny aby rozpocząć turniej', 'danger')
+                    return redirect(url_for('tournament_matches', tournament_id=tournament_id))
+                
+                tournament.status = 'ongoing'
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='info',
+                    user=current_user.email,
+                    action='start_tournament',
+                    details=f'Rozpoczęto turniej: {tournament.name}'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                flash('Turniej został rozpoczęty', 'success')
+                # Przekieruj bezpośrednio do widoku meczów
+                return redirect(url_for('tournament_matches', tournament_id=tournament_id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas rozpoczynania turnieju: {str(e)}')
+                flash('Wystąpił błąd podczas rozpoczynania turnieju', 'danger')
+                return redirect(url_for('tournament_matches', tournament_id=tournament_id))
+        
+        return redirect(url_for('tournament_matches', tournament_id=tournament_id))
+
+    @app.route('/admin/tournaments/<int:tournament_id>/end', methods=['POST'])
+    @login_required
+    def end_tournament(tournament_id):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                tournament = Tournament.query.get_or_404(tournament_id)
+                if tournament.status != 'ongoing':
+                    flash('Turniej nie może zostać zakończony', 'danger')
+                    return redirect(url_for('year_tournaments', year_id=tournament.year_id))
+                
+                tournament.status = 'finished'
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='info',
+                    user=current_user.email,
+                    action='end_tournament',
+                    details=f'Zakończono turniej: {tournament.name}'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                flash('Turniej został zakończony', 'success')
+                return redirect(url_for('year_tournaments', year_id=tournament.year_id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas kończenia turnieju: {str(e)}')
+                flash('Wystąpił błąd podczas kończenia turnieju', 'danger')
+                return redirect(url_for('year_tournaments', year_id=tournament.year_id))
+        
+        return redirect(url_for('year_tournaments', year_id=tournament.year_id))
+
+    @app.route('/admin/matches/add', methods=['POST'])
+    @login_required
+    def add_match():
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                tournament_id = request.form.get('tournament_id')
+                team1_id = request.form.get('team1_id')
+                team2_id = request.form.get('team2_id')
+                start_time = request.form.get('start_time')
+                
+                if not all([team1_id, team2_id, start_time]):
+                    flash('Wszystkie pola są wymagane', 'danger')
+                    return redirect(url_for('tournament_matches', tournament_id=tournament_id))
+                
+                if team1_id == team2_id:
+                    flash('Drużyny muszą być różne', 'danger')
+                    return redirect(url_for('tournament_matches', tournament_id=tournament_id))
+                
+                start_time = datetime.datetime.strptime(start_time, '%Y-%m-%dT%H:%M')
+                
+                new_match = Match(
+                    tournament_id=tournament_id,
+                    team1_id=team1_id,
+                    team2_id=team2_id,
+                    start_time=start_time,
+                    status='planned'
+                )
+                db.session.add(new_match)
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='info',
+                    user=current_user.email,
+                    action='add_match',
+                    details=f'Dodano nowy mecz'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                flash('Mecz został dodany', 'success')
+                return redirect(url_for('tournament_matches', tournament_id=tournament_id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas dodawania meczu: {str(e)}')
+                flash('Wystąpił błąd podczas dodawania meczu', 'danger')
+                return redirect(url_for('tournament_matches', tournament_id=request.form.get('tournament_id')))
+        
+        return redirect(url_for('tournament_matches', tournament_id=request.form.get('tournament_id')))
+
+    @app.route('/admin/matches/<int:match_id>/end', methods=['POST'])
+    @login_required
+    def end_match(match_id):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                match = Match.query.get_or_404(match_id)
+                if match.status != 'ongoing':
+                    flash('Mecz nie może zostać zakończony', 'danger')
+                    return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+                
+                match.status = 'finished'
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='info',
+                    user=current_user.email,
+                    action='end_match',
+                    details=f'Zakończono mecz: {match.team1.name} vs {match.team2.name}'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                # Broadcast update
+                broadcast_match_update(match_id)
+                
+                flash('Mecz został zakończony', 'success')
+                return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas kończenia meczu: {str(e)}')
+                flash('Wystąpił błąd podczas kończenia meczu', 'danger')
+                return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+
+        return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+
+    @app.route('/admin/matches/update-score', methods=['POST'])
+    @login_required
+    def update_match_score():
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            return jsonify({'success': False, 'message': 'Brak uprawnień'}), 403
+        
+        try:
+            match_id = request.form.get('match_id')
+            team1_score = request.form.get('team1_score')
+            team2_score = request.form.get('team2_score')
+            
+            match = Match.query.get_or_404(match_id)
+            
+            # Sprawdź czy użytkownik może edytować zakończony mecz
+            if match.status == 'finished' and not current_user.is_primary_admin:
+                return jsonify({'success': False, 'message': 'Tylko główny administrator może edytować zakończone mecze'}), 403
+            
+            # Pozwól na edycję tylko dla meczów w trakcie lub zakończonych (dla głównego admina)
+            if match.status not in ['ongoing', 'finished']:
+                return jsonify({'success': False, 'message': 'Nieprawidłowy status meczu'}), 400
+            
+            match.team1_score = int(team1_score)
+            match.team2_score = int(team2_score)
+            
+            # Dodaj log
+            log = SystemLog(
+                type='warning' if match.status == 'finished' else 'info',
+                user=current_user.email,
+                action='update_score',
+                details=f'{"[ZAKOŃCZONY] " if match.status == "finished" else ""}Zaktualizowano wynik meczu {match.team1.name} vs {match.team2.name}: {team1_score}-{team2_score}'
+            )
+            db.session.add(log)
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'team1_score': match.team1_score,
+                'team2_score': match.team2_score
+            })
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Błąd podczas aktualizacji wyniku: {str(e)}')
+            return jsonify({'success': False, 'message': 'Wystąpił błąd podczas aktualizacji wyniku'}), 500
+
+    @app.route('/admin/matches/edit', methods=['POST'])
+    @login_required
+    def edit_match():
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                match_id = request.form.get('match_id')
+                team1_id = request.form.get('team1_id')
+                team2_id = request.form.get('team2_id')
+                start_time = request.form.get('start_time')
+                
+                match = Match.query.get_or_404(match_id)
+                
+                if match.status != 'planned':
+                    flash('Można edytować tylko zaplanowane mecze', 'danger')
+                    return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+                
+                if not all([team1_id, team2_id, start_time]):
+                    flash('Wszystkie pola są wymagane', 'danger')
+                    return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+                
+                if team1_id == team2_id:
+                    flash('Drużyny muszą być różne', 'danger')
+                    return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+                
+                start_time = datetime.datetime.strptime(start_time, '%Y-%m-%dT%H:%M')
+                
+                match.team1_id = team1_id
+                match.team2_id = team2_id
+                match.start_time = start_time
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='info',
+                    user=current_user.email,
+                    action='edit_match',
+                    details=f'Edytowano mecz ID: {match_id}'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                flash('Mecz został zaktualizowany', 'success')
+                return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas edycji meczu: {str(e)}')
+                flash('Wystąpił błąd podczas edycji meczu', 'danger')
+                return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+        
+        return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+
+    @app.route('/admin/matches/<int:match_id>/delete', methods=['POST'])
+    @login_required
+    def delete_match(match_id):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                match = Match.query.get_or_404(match_id)
+                
+                if match.status != 'planned':
+                    flash('Można usuwać tylko zaplanowane mecze', 'danger')
+                    return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+                
+                tournament_id = match.tournament_id
+                
+                # Dodaj log przed usunięciem
+                log = SystemLog(
+                    type='warning',
+                    user=current_user.email,
+                    action='delete_match',
+                    details=f'Usunięto mecz: {match.team1.name} vs {match.team2.name}'
+                )
+                db.session.add(log)
+                
+                # Usuń mecz
+                db.session.delete(match)
+                db.session.commit()
+                
+                flash('Mecz został usunięty', 'success')
+                return redirect(url_for('tournament_matches', tournament_id=tournament_id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas usuwania meczu: {str(e)}')
+                flash('Wystąpił błąd podczas usuwania meczu', 'danger')
+                return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+        
+        return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+
+    @app.route('/admin/matches/quick-update-score', methods=['POST'])
+    @login_required
+    def quick_update_score():
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            return jsonify({'success': False, 'message': 'Brak uprawnień'}), 403
+        
+        try:
+            match_id = request.form.get('match_id')
+            team_number = request.form.get('team_number')
+            action = request.form.get('action')
+            
+            match = Match.query.get_or_404(match_id)
+            
+            if match.status != 'ongoing':
+                return jsonify({'success': False, 'message': 'Mecz nie jest w trakcie'}), 400
+            
+            if team_number == '1':
+                if action == 'add':
+                    match.team1_score = (match.team1_score or 0) + 1
+                elif action == 'subtract' and match.team1_score > 0:
+                    match.team1_score = match.team1_score - 1
+            elif team_number == '2':
+                if action == 'add':
+                    match.team2_score = (match.team2_score or 0) + 1
+                elif action == 'subtract' and match.team2_score > 0:
+                    match.team2_score = match.team2_score - 1
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'team1_score': match.team1_score or 0,
+                'team2_score': match.team2_score or 0
+            })
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Błąd podczas szybkiej aktualizacji wyniku: {str(e)}')
+            return jsonify({'success': False, 'message': 'Wystąpił błąd podczas aktualizacji wyniku'}), 500
+
+    @app.route('/admin/matches/<int:match_id>/reopen', methods=['POST'])
+    @login_required
+    def reopen_match(match_id):
+        if not current_user.is_authenticated or not current_user.is_primary_admin:
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                match = Match.query.get_or_404(match_id)
+                if match.status != 'finished':
+                    flash('Tylko zakończone mecze mogą zostać wznowione', 'danger')
+                    return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+                
+                match.status = 'ongoing'
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='warning',
+                    user=current_user.email,
+                    action='reopen_match',
+                    details=f'Wznowiono zakończony mecz: {match.team1.name} vs {match.team2.name}'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                flash('Mecz został wznowiony', 'success')
+                return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas wznawiania meczu: {str(e)}')
+                flash('Wystąpił błąd podczas wznawiania meczu', 'danger')
+                return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+        
+        return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+
+    @app.route('/stream')
+    def stream():
+        def event_stream():
+            while True:
+                try:
+                    # Get update from queue, timeout after 30 seconds
+                    update = match_updates.get(timeout=30)
+                    yield f"data: {json.dumps(update)}\n\n"
+                except queue.Empty:
+                    # Send keep-alive comment to prevent connection timeout
+                    yield ": keep-alive\n\n"
+            
+        return Response(stream_with_context(event_stream()), 
+                       mimetype='text/event-stream',
+                       headers={'Cache-Control': 'no-cache',
+                               'Connection': 'keep-alive'})
+
+    def broadcast_match_update(match_id):
+        """Helper function to broadcast match updates to all connected clients"""
+        try:
+            match = Match.query.get(match_id)
+            if match:
+                update = {
+                    'match_id': match.id,
+                    'status': match.status,
+                    'team1_score': match.team1_score if match.team1_score is not None else 0,
+                    'team2_score': match.team2_score if match.team2_score is not None else 0,
+                    'tournament_id': match.tournament_id
+                }
+                match_updates.put(update)
+        except Exception as e:
+            app.logger.error(f'Error broadcasting match update: {str(e)}')
+
+    @app.route('/admin/matches/<int:match_id>/quick-score-update', methods=['POST'])
+    @login_required
+    def quick_update_match_score(match_id):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            return jsonify({'success': False, 'message': 'Brak uprawnień'}), 403
+        
+        try:
+            data = request.get_json()
+            team_number = data.get('team_number')
+            action = data.get('action')
+            
+            match = Match.query.get_or_404(match_id)
+            
+            if match.status != 'ongoing':
+                return jsonify({'success': False, 'message': 'Mecz nie jest w trakcie'}), 400
+            
+            if team_number == '1':
+                if action == 'add':
+                    match.team1_score = (match.team1_score or 0) + 1
+                elif action == 'subtract' and match.team1_score > 0:
+                    match.team1_score = match.team1_score - 1
+            elif team_number == '2':
+                if action == 'add':
+                    match.team2_score = (match.team2_score or 0) + 1
+                elif action == 'subtract' and match.team2_score > 0:
+                    match.team2_score = match.team2_score - 1
+            
+            db.session.commit()
+            
+            # Broadcast update
+            broadcast_match_update(match_id)
+            
+            return jsonify({
+                'success': True,
+                'team1_score': match.team1_score or 0,
+                'team2_score': match.team2_score or 0
+            })
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Błąd podczas szybkiej aktualizacji wyniku: {str(e)}')
+            return jsonify({'success': False, 'message': 'Wystąpił błąd podczas aktualizacji wyniku'}), 500
+
+    @app.route('/admin/matches/<int:match_id>/start', methods=['POST'])
+    @login_required
+    def start_match(match_id):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Brak uprawnień', 'danger')
+            return redirect(url_for('login'))
+        
+        form = EmptyForm()
+        if form.validate_on_submit():
+            try:
+                match = Match.query.get_or_404(match_id)
+                if match.status != 'planned':
+                    flash('Mecz nie może zostać rozpoczęty', 'danger')
+                    return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+                
+                match.status = 'ongoing'
+                
+                # Dodaj log
+                log = SystemLog(
+                    type='info',
+                    user=current_user.email,
+                    action='start_match',
+                    details=f'Rozpoczęto mecz: {match.team1.name} vs {match.team2.name}'
+                )
+                db.session.add(log)
+                db.session.commit()
+                
+                # Broadcast update
+                broadcast_match_update(match_id)
+                
+                flash('Mecz został rozpoczęty', 'success')
+                return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Błąd podczas rozpoczynania meczu: {str(e)}')
+                flash('Wystąpił błąd podczas rozpoczynania meczu', 'danger')
+                return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+
+        return redirect(url_for('tournament_matches', tournament_id=match.tournament_id))
+
+class EmptyForm(FlaskForm):
+    pass 

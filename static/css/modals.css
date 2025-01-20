@@ -1,0 +1,159 @@
+/* Modal Styles */
+.modal-content {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 1rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.modal-header {
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-primary);
+    padding: 1rem 1.5rem;
+}
+
+.modal-title {
+    color: var(--text-primary);
+    font-weight: 600;
+    margin: 0;
+}
+
+.modal-body {
+    padding: 1.5rem;
+    color: var(--text-primary);
+}
+
+.modal-footer {
+    background: var(--bg-tertiary);
+    border-top: 1px solid var(--border-primary);
+    padding: 1rem 1.5rem;
+}
+
+.btn-close {
+    color: var(--text-primary);
+    opacity: 0.75;
+    transition: opacity 0.2s;
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+.btn-close:hover {
+    opacity: 1;
+}
+
+/* Confirmation Modal */
+.modal-confirm {
+    max-width: 400px;
+    margin: 1.75rem auto;
+}
+
+.modal-confirm .modal-header {
+    border-radius: 1rem 1rem 0 0;
+    padding: 1.25rem 1.5rem;
+}
+
+.modal-confirm .modal-title {
+    font-size: 1.125rem;
+}
+
+.modal-confirm .modal-body {
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.modal-confirm .modal-body p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.modal-confirm .modal-footer {
+    border-radius: 0 0 1rem 1rem;
+    padding: 1.25rem 1.5rem;
+}
+
+.modal-confirm .modal-footer a {
+    color: var(--text-secondary);
+}
+
+.modal-confirm .btn, 
+.modal-confirm .btn:active {
+    color: #fff;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: all 0.4s;
+    line-height: normal;
+    min-width: 120px;
+    border: none;
+    min-height: 40px;
+    border-radius: 3px;
+    margin: 0 5px;
+}
+
+.modal-confirm .btn-secondary {
+    background: var(--bg-hover);
+}
+
+.modal-confirm .btn-secondary:hover, 
+.modal-confirm .btn-secondary:focus {
+    background: var(--bg-tertiary);
+}
+
+.modal-confirm .btn-danger {
+    background: var(--danger-color);
+}
+
+.modal-confirm .btn-danger:hover, 
+.modal-confirm .btn-danger:focus {
+    background: var(--danger-hover);
+}
+
+/* Form Modal */
+.modal-form {
+    max-width: 500px;
+    margin: 1.75rem auto;
+}
+
+.modal-form .form-group:last-child {
+    margin-bottom: 0;
+}
+
+/* Modal Backdrop */
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+/* Modal Animation */
+.modal.fade .modal-dialog {
+    transform: scale(0.95);
+    transition: transform 0.2s ease-out;
+}
+
+.modal.show .modal-dialog {
+    transform: none;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+    
+    .modal-content {
+        border-radius: 0.75rem;
+    }
+    
+    .modal-header,
+    .modal-footer {
+        padding: 0.75rem 1rem;
+    }
+    
+    .modal-body {
+        padding: 1rem;
+    }
+    
+    .modal-confirm .modal-content,
+    .modal-form .modal-content {
+        max-width: none;
+        margin: 0.5rem;
+    }
+} 

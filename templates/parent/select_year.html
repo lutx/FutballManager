@@ -1,0 +1,176 @@
+{% extends "parent/layout.html" %}
+
+{% block title %}Wybór rocznika{% endblock %}
+
+{% block parent_content %}
+<div class="dashboard-container">
+    <div class="years-list">
+        {% for year in years %}
+        <a href="{{ url_for('parent.year_tournaments', year_id=year.id) }}" class="year-link">
+            <span class="year-text">{{ year.year }}</span>
+        </a>
+        {% else %}
+        <div class="empty-state">
+            <p>Brak dostępnych roczników</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+.dashboard-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+    min-height: calc(100vh - 60px); /* Adjust based on your header height */
+    display: flex;
+    align-items: center;
+}
+
+.years-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem;
+    width: 100%;
+}
+
+.year-link {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    text-decoration: none;
+    padding: 1rem 2rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+}
+
+.year-text {
+    position: relative;
+    z-index: 1;
+}
+
+.year-link:hover {
+    color: #818cf8;
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 2rem;
+}
+
+@media (max-width: 768px) {
+    .dashboard-container {
+        padding: 0;
+    }
+
+    .years-list {
+        padding: 0;
+        gap: 0;
+    }
+
+    .year-link {
+        font-size: 1.75rem;
+        padding: 1.5rem 1rem;
+        background: rgba(255, 255, 255, 0.02);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transform-origin: center;
+    }
+
+    .year-link:active {
+        background: rgba(255, 255, 255, 0.05);
+        transform: scale(0.98);
+    }
+
+    .year-link::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 2px;
+        background: linear-gradient(to right, transparent, #818cf8, transparent);
+        opacity: 0;
+        transform: scaleX(0);
+        transition: all 0.3s ease;
+    }
+
+    .year-link:active::after {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+
+    /* Animacja wejścia dla elementów listy */
+    .year-link {
+        animation: slideIn 0.3s ease backwards;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Opóźnienie animacji dla kolejnych elementów */
+    {% for year in years %}
+    .year-link:nth-child({{ loop.index }}) {
+        animation-delay: {{ loop.index * 0.1 }}s;
+    }
+    {% endfor %}
+
+    /* Ripple effect */
+    .year-link {
+        overflow: hidden;
+    }
+
+    .year-link::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        background: radial-gradient(circle, rgba(129, 140, 248, 0.2) 0%, transparent 70%);
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        transition: width 0.6s ease, height 0.6s ease;
+    }
+
+    .year-link:active::before {
+        width: 1000px;
+        height: 1000px;
+    }
+}
+
+/* Dodatkowe style dla bardzo małych ekranów */
+@media (max-width: 360px) {
+    .year-link {
+        font-size: 1.5rem;
+        padding: 1.25rem 1rem;
+    }
+}
+
+/* Dodatkowe style dla wysokich ekranów */
+@media (min-height: 700px) {
+    .years-list {
+        padding: 2rem 0;
+    }
+
+    .year-link {
+        padding: 2rem 1rem;
+    }
+}
+</style>
+{% endblock %} 

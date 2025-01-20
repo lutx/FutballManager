@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Panel główny</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="dashboard-container">
+        <h2>Witaj, {{ current_user.username }}!</h2>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('admin.dashboard') }}">Panel główny</a></li>
+                <li><a href="{{ url_for('auth.logout') }}">Wyloguj</a></li>
+            </ul>
+        </nav>
+        <div class="dashboard-content">
+            <!-- Tutaj dodaj zawartość panelu głównego -->
+        </div>
+    </div>
+</body>
+</html> 

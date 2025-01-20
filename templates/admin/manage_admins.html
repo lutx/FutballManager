@@ -1,0 +1,154 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Zarządzanie administratorami{% endblock %}
+
+{% block breadcrumb %}
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item active">
+    <i class="fas fa-users"></i>
+    <span>Administratorzy</span>
+</span>
+{% endblock %}
+
+{% block admin_content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <i class="fas fa-users text-primary"></i>
+        <span>Zarządzanie administratorami</span>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-user-plus"></i>
+                Dodaj nowego administratora
+            </h3>
+        </div>
+        <div class="card-content">
+            <form method="POST" action="{{ url_for('admin.add_admin') }}">
+                {{ form.hidden_tag() }}
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-envelope"></i>
+                        {{ form.email.label.text }}
+                    </label>
+                    {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""), placeholder="Wprowadź adres email") }}
+                    {% for error in form.email.errors %}
+                        <div class="invalid-feedback">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-lock"></i>
+                        {{ form.password.label.text }}
+                    </label>
+                    {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Wprowadź hasło") }}
+                    {% for error in form.password.errors %}
+                        <div class="invalid-feedback">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-lock"></i>
+                        {{ form.confirm_password.label.text }}
+                    </label>
+                    {{ form.confirm_password(class="form-control" + (" is-invalid" if form.confirm_password.errors else ""), placeholder="Potwierdź hasło") }}
+                    {% for error in form.confirm_password.errors %}
+                        <div class="invalid-feedback">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-user-plus"></i>
+                    Dodaj administratora
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-list"></i>
+                Lista administratorów
+            </h3>
+        </div>
+        <div class="card-content p-0">
+            {% if admins %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for admin in admins %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-user text-primary"></i>
+                                    {{ admin.email }}
+                                    {% if admin.is_primary_admin %}
+                                        <span class="badge badge-primary">Główny administrator</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge badge-success">
+                                    <i class="fas fa-check"></i>
+                                    Aktywny
+                                </span>
+                            </td>
+                            <td>
+                                {% if not admin.is_primary_admin %}
+                                <form method="POST" action="{{ url_for('admin.delete_admin', admin_id=admin.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Czy na pewno chcesz usunąć tego administratora?')">
+                                        <i class="fas fa-trash"></i>
+                                        Usuń
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <h4>Brak administratorów</h4>
+                <p>Nie dodano jeszcze żadnych administratorów do systemu.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.badge-success {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+}
+
+.btn-danger {
+    background: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: var(--danger-hover);
+}
+
+@media (max-width: 768px) {
+    .btn-sm {
+        width: auto;
+    }
+}
+</style>
+{% endblock %} 

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pl" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}Football Team Management{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.ico') }}">
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+    
+    <!-- CSRF Protection for AJAX -->
+    <script>
+        window.csrf_token = "{{ csrf_token() }}";
+        // Add CSRF token to all AJAX requests
+        document.addEventListener('DOMContentLoaded', function() {
+            let token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            let headers = new Headers();
+            headers.append('X-CSRF-Token', token);
+            
+            // Add token to fetch requests
+            let originalFetch = window.fetch;
+            window.fetch = function() {
+                let args = Array.prototype.slice.call(arguments);
+                if (args[1] && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(args[1].method)) {
+                    if (!args[1].headers) {
+                        args[1].headers = {};
+                    }
+                    args[1].headers['X-CSRF-Token'] = token;
+                }
+                return originalFetch.apply(this, args);
+            };
+            
+            // Add token to XMLHttpRequest
+            let originalXHR = window.XMLHttpRequest;
+            function newXHR() {
+                let xhr = new originalXHR();
+                let send = xhr.send;
+                xhr.send = function() {
+                    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(xhr.method)) {
+                        xhr.setRequestHeader('X-CSRF-Token', token);
+                    }
+                    return send.apply(this, arguments);
+                };
+                return xhr;
+            }
+            window.XMLHttpRequest = newXHR;
+        });
+    </script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                <i class="fas fa-futbol me-2"></i>Team Manager
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if current_user.is_authenticated %}
+                        {% if current_user.role == 'parent' %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('parent.select_year') }}">
+                                    <i class="fas fa-calendar me-1"></i>Roczniki
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('parent.tournaments') }}">
+                                    <i class="fas fa-trophy me-1"></i>Turnieje
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('parent.results') }}">
+                                    <i class="fas fa-list me-1"></i>Wyniki
+                                </a>
+                            </li>
+                        {% endif %}
+                        {% if current_user.role == 'admin' %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('admin.dashboard') }}">
+                                    <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('admin.manage_years') }}">
+                                    <i class="fas fa-calendar me-1"></i>Roczniki
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('admin.manage_logo') }}">
+                                    <i class="fas fa-image me-1"></i>Logo
+                                </a>
+                            </li>
+                            {% if current_user.is_primary_admin %}
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ url_for('admin.manage_admins') }}">
+                                        <i class="fas fa-users-cog me-1"></i>Administratorzy
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ url_for('admin.view_logs') }}">
+                                        <i class="fas fa-clipboard-list me-1"></i>Logi
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    {% if current_user.is_authenticated %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.logout') }}">
+                                <i class="fas fa-sign-out-alt me-1"></i>Wyloguj
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.login') }}">
+                                <i class="fas fa-sign-in-alt me-1"></i>Zaloguj
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mb-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer mt-auto py-3">
+        <div class="container text-center">
+            <span>&copy; 2024 Football Team Management. Wszelkie prawa zastrzeżone.</span>
+        </div>
+    </footer>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JavaScript -->
+    {% block extra_js %}{% endblock %}
+</body>
+</html> 

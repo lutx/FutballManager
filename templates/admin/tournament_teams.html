@@ -1,0 +1,228 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Drużyny - {{ tournament.name }}{% endblock %}
+
+{% block breadcrumb %}
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-calendar"></i>
+    <a href="{{ url_for('admin.manage_years') }}">Roczniki</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-trophy"></i>
+    <a href="{{ url_for('admin.year_tournaments', year_id=tournament.year_id) }}">{{ tournament.year.year }}</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item active">
+    <i class="fas fa-users"></i>
+    <span>{{ tournament.name }}</span>
+</span>
+{% endblock %}
+
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-users fa-sm text-primary"></i>
+            Drużyny
+        </h1>
+        <div>
+            <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addTeamModal">
+                <i class="fas fa-plus fa-sm text-white-50"></i>
+                Dodaj drużynę
+            </button>
+        </div>
+    </div>
+
+    {% if teams %}
+    <div class="row">
+        {% for team in teams %}
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card border-left-primary shadow h-100 py-1">
+                <div class="card-body py-2">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="h6 mb-0 font-weight-bold text-gray-800">{{ team.name }}</div>
+                            <div class="text-xs font-weight-bold text-primary text-uppercase">
+                                Mecze: {{ team.matches|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            {% if tournament.status == 'planned' %}
+                            <button type="button" 
+                                    class="btn btn-info btn-circle btn-xs me-1"
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#editTeamModal"
+                                    data-team-id="{{ team.id }}"
+                                    data-team-name="{{ team.name }}">
+                                <i class="fas fa-pen fa-2xs"></i>
+                            </button>
+                            <button type="button" 
+                                    class="btn btn-xs btn-danger delete-team-btn" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#deleteTeamModal"
+                                    data-delete-url="{{ url_for('admin.delete_team', tournament_id=tournament.id, team_id=team.id) }}">
+                                <i class="fas fa-trash fa-2xs"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <div class="text-center">
+                <i class="fas fa-users fa-3x text-gray-300 mb-3"></i>
+                <p class="mb-0">Brak drużyn w tym turnieju</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal dodawania drużyny -->
+<div class="modal fade" id="addTeamModal" tabindex="-1" role="dialog" aria-labelledby="addTeamModalLabel">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addTeamModalLabel">
+                    <i class="fas fa-plus"></i>
+                    Dodaj drużynę
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.add_team') }}">
+                <div class="modal-body">
+                    {{ form.csrf_token }}
+                    <input type="hidden" name="tournament_id" value="{{ tournament.id }}">
+                    <div class="form-group">
+                        {{ form.name.label(class="form-label", for="addTeamName") }}
+                        {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), placeholder="Nazwa drużyny", id="addTeamName") }}
+                        {% for error in form.name.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i>
+                        Anuluj
+                    </button>
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal edycji drużyny -->
+<div class="modal fade" id="editTeamModal" tabindex="-1" role="dialog" aria-labelledby="editTeamModalLabel">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editTeamModalLabel">
+                    <i class="fas fa-pen"></i>
+                    Edytuj drużynę
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.edit_team') }}">
+                <div class="modal-body">
+                    {{ form.csrf_token }}
+                    <input type="hidden" name="tournament_id" value="{{ tournament.id }}">
+                    <input type="hidden" name="team_id" id="editTeamId">
+                    <div class="form-group">
+                        <label class="form-label" for="editTeamName">Nazwa drużyny</label>
+                        <input type="text" name="name" id="editTeamName" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i>
+                        Anuluj
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i>
+                        Zapisz
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Team Confirmation Modal -->
+<div class="modal fade" id="deleteTeamModal" tabindex="-1" role="dialog" aria-labelledby="deleteTeamModalLabel">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="deleteTeamModalLabel">
+                    <i class="fas fa-exclamation-triangle text-danger"></i>
+                    Potwierdź usunięcie
+                </h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <div class="modal-body">
+                <p>Czy na pewno chcesz usunąć tę drużynę?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times fa-sm"></i>
+                    Anuluj
+                </button>
+                <form id="deleteTeamForm" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash fa-sm"></i>
+                        Usuń
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM Content Loaded');
+
+        // Initialize all modals
+        const modals = document.querySelectorAll('.modal');
+        modals.forEach(modalEl => {
+            new bootstrap.Modal(modalEl);
+        });
+
+        // Handle delete team modal
+        const deleteTeamModal = document.getElementById('deleteTeamModal');
+        deleteTeamModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const deleteUrl = button.getAttribute('data-delete-url');
+            console.log('Delete URL:', deleteUrl);
+            this.querySelector('#deleteTeamForm').action = deleteUrl;
+        });
+
+        // Handle edit team modal
+        const editTeamModal = document.getElementById('editTeamModal');
+        editTeamModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const teamId = button.getAttribute('data-team-id');
+            const teamName = button.getAttribute('data-team-name');
+            console.log('Edit team:', teamId, teamName);
+            this.querySelector('#editTeamId').value = teamId;
+            this.querySelector('#editTeamName').value = teamName;
+        });
+
+        // Show modal if there are form errors
+        const container = document.querySelector('.container-fluid');
+        if (container && container.dataset.hasFormErrors === 'true') {
+            const modal = new bootstrap.Modal(document.getElementById('addTeamModal'));
+            modal.show();
+        }
+    });
+</script>
+{% endblock %} 

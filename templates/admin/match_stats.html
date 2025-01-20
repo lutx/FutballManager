@@ -1,0 +1,399 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ match.team1.name }} vs {{ match.team2.name }} - Statystyki{% endblock %}
+
+{% block breadcrumb %}
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-calendar"></i>
+    <a href="{{ url_for('admin.years') }}">Lata</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-trophy"></i>
+    <a href="{{ url_for('admin.tournaments', year=tournament.year) }}">Turnieje {{ tournament.year }}</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-info-circle"></i>
+    <a href="{{ url_for('admin.tournament_details', tournament_id=tournament.id) }}">{{ tournament.name }}</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item active">
+    <i class="fas fa-futbol"></i>
+    <span>{{ match.team1.name }} vs {{ match.team2.name }}</span>
+</span>
+{% endblock %}
+
+{% block admin_content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <i class="fas fa-futbol text-primary"></i>
+        <span>{{ match.team1.name }} vs {{ match.team2.name }}</span>
+    </div>
+
+    <!-- Informacje o meczu -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-info-circle"></i>
+                Informacje o meczu
+            </h3>
+            {% if match.status == 'planned' %}
+            <div class="card-actions">
+                <form method="POST" action="{{ url_for('admin.start_match', match_id=match.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-success" onclick="return confirm('Czy na pewno chcesz rozpocząć mecz?')">
+                        <i class="fas fa-play"></i>
+                        Rozpocznij mecz
+                    </button>
+                </form>
+            </div>
+            {% elif match.status == 'in_progress' %}
+            <div class="card-actions">
+                <form method="POST" action="{{ url_for('admin.end_match', match_id=match.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-warning" onclick="return confirm('Czy na pewno chcesz zakończyć mecz?')">
+                        <i class="fas fa-flag-checkered"></i>
+                        Zakończ mecz
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        <div class="card-content">
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">
+                        <i class="fas fa-calendar"></i>
+                        Data
+                    </div>
+                    <div class="info-value">{{ match.start_time.strftime('%Y-%m-%d %H:%M') }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">
+                        <i class="fas fa-flag"></i>
+                        Status
+                    </div>
+                    <div class="info-value">
+                        <span class="badge badge-{{ match.status }}">
+                            {% if match.status == 'planned' %}
+                                <i class="fas fa-calendar"></i>
+                                Zaplanowany
+                            {% elif match.status == 'in_progress' %}
+                                <i class="fas fa-play"></i>
+                                W trakcie
+                            {% elif match.status == 'completed' %}
+                                <i class="fas fa-check"></i>
+                                Zakończony
+                            {% elif match.status == 'cancelled' %}
+                                <i class="fas fa-times"></i>
+                                Anulowany
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">
+                        <i class="fas fa-hashtag"></i>
+                        Boisko
+                    </div>
+                    <div class="info-value">{{ match.field_number }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">
+                        <i class="fas fa-clock"></i>
+                        Czas gry
+                    </div>
+                    <div class="info-value">{{ match.match_length }} min</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wynik meczu -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-trophy"></i>
+                Wynik meczu
+            </h3>
+            {% if match.status == 'in_progress' or match.status == 'completed' %}
+            <div class="card-actions">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#updateScoreModal">
+                    <i class="fas fa-edit"></i>
+                    Aktualizuj wynik
+                </button>
+            </div>
+            {% endif %}
+        </div>
+        <div class="card-content">
+            <div class="score-display">
+                <div class="team team1">
+                    <div class="team-name">{{ match.team1.name }}</div>
+                    <div class="team-score">{{ match.score1 if match.score1 is not none else '-' }}</div>
+                </div>
+                <div class="score-separator">:</div>
+                <div class="team team2">
+                    <div class="team-name">{{ match.team2.name }}</div>
+                    <div class="team-score">{{ match.score2 if match.score2 is not none else '-' }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Historia zmian -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-history"></i>
+                Historia zmian
+            </h3>
+        </div>
+        <div class="card-content p-0">
+            {% if match.history %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Akcja</th>
+                            <th>Szczegóły</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for event in match.history %}
+                        <tr>
+                            <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td>
+                                <span class="badge badge-{{ event.type }}">
+                                    {% if event.type == 'start' %}
+                                        <i class="fas fa-play"></i>
+                                        Rozpoczęcie
+                                    {% elif event.type == 'score' %}
+                                        <i class="fas fa-futbol"></i>
+                                        Zmiana wyniku
+                                    {% elif event.type == 'end' %}
+                                        <i class="fas fa-flag-checkered"></i>
+                                        Zakończenie
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>{{ event.details }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-history"></i>
+                </div>
+                <h4>Brak historii</h4>
+                <p>Nie ma jeszcze żadnych wydarzeń w historii tego meczu.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal aktualizacji wyniku -->
+<div class="modal fade" id="updateScoreModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit"></i>
+                    Aktualizuj wynik
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.update_score', match_id=match.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="score-form">
+                        <div class="form-group">
+                            <label class="form-label">{{ match.team1.name }}</label>
+                            <input type="number" name="score1" class="form-control" min="0" value="{{ match.score1 if match.score1 is not none else 0 }}" required>
+                        </div>
+                        <div class="score-separator">:</div>
+                        <div class="form-group">
+                            <label class="form-label">{{ match.team2.name }}</label>
+                            <input type="number" name="score2" class="form-control" min="0" value="{{ match.score2 if match.score2 is not none else 0 }}" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i>
+                        Anuluj
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i>
+                        Zapisz
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.info-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.info-value {
+    font-size: 1.125rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.score-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    padding: 2rem;
+}
+
+.team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.team-name {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.team-score {
+    font-size: 3rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.score-separator {
+    font-size: 3rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+/* Score form */
+.score-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.score-form .form-group {
+    flex: 1;
+}
+
+/* Status badges */
+.badge-planned {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.badge-in_progress {
+    background: rgba(234, 179, 8, 0.1);
+    color: #eab308;
+}
+
+.badge-completed {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+}
+
+.badge-cancelled {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.badge-start {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.badge-score {
+    background: rgba(234, 179, 8, 0.1);
+    color: #eab308;
+}
+
+.badge-end {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+}
+
+/* Modal styles */
+.modal-content {
+    background: var(--dark-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+@media (max-width: 768px) {
+    .info-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .score-display {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .team-score {
+        font-size: 2.5rem;
+    }
+
+    .score-separator {
+        font-size: 2.5rem;
+    }
+
+    .score-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .score-form .score-separator {
+        text-align: center;
+    }
+}
+</style>
+{% endblock %} 

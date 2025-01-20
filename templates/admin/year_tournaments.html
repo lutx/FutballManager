@@ -1,0 +1,194 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Turnieje - Rocznik {{ year.year }}{% endblock %}
+
+{% block breadcrumb %}
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item">
+    <i class="fas fa-calendar"></i>
+    <a href="{{ url_for('admin.manage_years') }}">Roczniki</a>
+</span>
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item active">
+    <i class="fas fa-trophy"></i>
+    <span>Turnieje</span>
+</span>
+{% endblock %}
+
+{% block admin_content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <i class="fas fa-trophy text-primary"></i>
+        <span>Turnieje - Rocznik {{ year.year }}</span>
+        <button type="button" class="btn btn-primary ms-auto" data-bs-toggle="modal" data-bs-target="#addTournamentModal">
+            <i class="fas fa-plus"></i> Dodaj turniej
+        </button>
+    </div>
+
+    {% if tournaments %}
+        <div class="row">
+            {% for tournament in tournaments %}
+                <div class="col-xl-4 col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-trophy"></i>
+                                {{ tournament.name }}
+                                <span class="badge badge-{{ tournament.status }} ms-2">{{ tournament.status }}</span>
+                            </h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="row mb-4">
+                                <div class="col-6">
+                                    <div class="text-secondary text-uppercase small">Drużyny</div>
+                                    <div class="h5 mb-0">
+                                        {{ tournament.teams|length }}
+                                        {% if tournament.teams|length < 2 %}
+                                            <i class="fas fa-exclamation-circle text-warning" data-bs-toggle="tooltip" title="Wymagane minimum 2 drużyny"></i>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-secondary text-uppercase small">Boiska</div>
+                                    <div class="h5 mb-0">{{ tournament.number_of_fields }}</div>
+                                </div>
+                            </div>
+                            <div class="row mb-4">
+                                <div class="col-6">
+                                    <div class="text-secondary text-uppercase small">Mecz</div>
+                                    <div class="h5 mb-0">{{ tournament.match_length }} min</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-secondary text-uppercase small">Przerwa</div>
+                                    <div class="h5 mb-0">{{ tournament.break_length }} min</div>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a href="{{ url_for('admin.tournament_teams', tournament_id=tournament.id) }}" 
+                                   class="btn btn-outline-primary btn-sm flex-grow-1">
+                                    <i class="fas fa-users"></i> Drużyny
+                                </a>
+                                <a href="{{ url_for('admin.tournament_matches', tournament_id=tournament.id) }}" 
+                                   class="btn btn-outline-info btn-sm flex-grow-1 {% if tournament.teams|length < 2 %}disabled{% endif %}"
+                                   {% if tournament.teams|length < 2 %}
+                                   data-bs-toggle="tooltip" 
+                                   title="Wymagane minimum 2 drużyny"
+                                   {% endif %}>
+                                    <i class="fas fa-futbol"></i> Mecze
+                                </a>
+                                {% if tournament.status == 'planned' %}
+                                    {% set has_matches = tournament.matches|length > 0 %}
+                                    <button type="button"
+                                            class="btn btn-success btn-sm flex-grow-1 start-tournament-btn {% if not has_matches or tournament.teams|length < 2 %}disabled{% endif %}"
+                                            data-tournament-id="{{ tournament.id }}"
+                                            {% if not has_matches %}
+                                            data-bs-toggle="tooltip"
+                                            title="{% if tournament.teams|length < 2 %}Wymagane minimum 2 drużyny{% else %}Wymagany minimum 1 mecz{% endif %}"
+                                            {% endif %}>
+                                        <i class="fas fa-play"></i> Start
+                                    </button>
+                                {% elif tournament.status == 'ongoing' %}
+                                    <button type="button"
+                                            class="btn btn-danger btn-sm flex-grow-1 end-tournament-btn"
+                                            data-tournament-id="{{ tournament.id }}">
+                                        <i class="fas fa-stop"></i> Stop
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <i class="fas fa-info-circle empty-icon"></i>
+            <h4>Brak turniejów</h4>
+            <p>Nie znaleziono żadnych turniejów dla tego rocznika.</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Modal dodawania turnieju -->
+<div class="modal fade" id="addTournamentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus"></i>
+                    Dodaj turniej
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.add_tournament') }}">
+                <div class="modal-body">
+                    {{ form.csrf_token }}
+                    <input type="hidden" name="year_id" value="{{ year.id }}">
+                    <div class="form-group">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control") }}
+                    </div>
+                    <div class="form-group mt-3">
+                        {{ form.address.label(class="form-label") }}
+                        {{ form.address(class="form-control") }}
+                    </div>
+                    <div class="form-group mt-3">
+                        {{ form.number_of_fields.label(class="form-label") }}
+                        {{ form.number_of_fields(class="form-control") }}
+                    </div>
+                    <div class="form-group mt-3">
+                        {{ form.match_length.label(class="form-label") }}
+                        {{ form.match_length(class="form-control") }}
+                    </div>
+                    <div class="form-group mt-3">
+                        {{ form.break_length.label(class="form-label") }}
+                        {{ form.break_length(class="form-control") }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Anuluj
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Dodaj
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        });
+
+        // Initialize modal if there are form errors
+        if (document.querySelector('.is-invalid')) {
+            const modal = new bootstrap.Modal(document.getElementById('addTournamentModal'));
+            modal.show();
+        }
+        
+        // Event listeners for tournament control buttons
+        document.querySelectorAll('.start-tournament-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                if (button.classList.contains('disabled')) return;
+                const tournamentId = this.dataset.tournamentId;
+                startTournament(tournamentId);
+            });
+        });
+        
+        document.querySelectorAll('.end-tournament-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                const tournamentId = this.dataset.tournamentId;
+                endTournament(tournamentId);
+            });
+        });
+    });
+</script>
+{% endblock %} 

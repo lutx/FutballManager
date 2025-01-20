@@ -1,0 +1,339 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Logi systemowe{% endblock %}
+
+{% block breadcrumb %}
+<i class="fas fa-chevron-right breadcrumb-separator"></i>
+<span class="breadcrumb-item active">
+    <i class="fas fa-history"></i>
+    <span>Logi</span>
+</span>
+{% endblock %}
+
+{% block admin_content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <i class="fas fa-history text-primary"></i>
+        <span>Logi systemowe</span>
+    </div>
+
+    <!-- Filtry -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-filter"></i>
+                Filtry
+            </h3>
+        </div>
+        <div class="card-content">
+            <form method="GET" class="filters-form">
+                <div class="filters-grid">
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-tag"></i>
+                            Typ
+                        </label>
+                        <select name="type" class="form-control">
+                            <option value="">Wszystkie typy</option>
+                            {% for type in unique_types %}
+                            <option value="{{ type }}" {% if request.args.get('type') == type %}selected{% endif %}>
+                                {{ type }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-tasks"></i>
+                            Akcja
+                        </label>
+                        <select name="action" class="form-control">
+                            <option value="">Wszystkie akcje</option>
+                            {% for action in unique_actions %}
+                            <option value="{{ action }}" {% if request.args.get('action') == action %}selected{% endif %}>
+                                {{ action }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-user"></i>
+                            Użytkownik
+                        </label>
+                        <select name="user" class="form-control">
+                            <option value="">Wszyscy użytkownicy</option>
+                            {% for user in unique_users %}
+                            <option value="{{ user }}" {% if request.args.get('user') == user %}selected{% endif %}>
+                                {{ user }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-calendar"></i>
+                            Data od
+                        </label>
+                        <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-calendar"></i>
+                            Data do
+                        </label>
+                        <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
+                    </div>
+                    <div class="form-group filter-buttons">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i>
+                            Filtruj
+                        </button>
+                        <a href="{{ url_for('admin.view_logs') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i>
+                            Wyczyść
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista logów -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-list"></i>
+                Lista logów
+            </h3>
+            <div class="card-actions">
+                <form method="POST" action="{{ url_for('admin.clear_logs') }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Czy na pewno chcesz usunąć stare logi?')">
+                        <i class="fas fa-trash"></i>
+                        Wyczyść stare logi
+                    </button>
+                </form>
+            </div>
+        </div>
+        <div class="card-content p-0">
+            {% if logs.items %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Typ</th>
+                            <th>Użytkownik</th>
+                            <th>Akcja</th>
+                            <th>Szczegóły</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs.items %}
+                        <tr>
+                            <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td>
+                                <span class="badge badge-{{ log.type }}">
+                                    {% if log.type == 'info' %}
+                                        <i class="fas fa-info-circle"></i>
+                                    {% elif log.type == 'warning' %}
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    {% elif log.type == 'error' %}
+                                        <i class="fas fa-times-circle"></i>
+                                    {% endif %}
+                                    {{ log.type }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-user text-primary"></i>
+                                    {{ log.user }}
+                                </div>
+                            </td>
+                            <td>{{ log.action }}</td>
+                            <td>{{ log.details }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginacja -->
+            {% if logs.pages > 1 %}
+            <div class="pagination-wrapper">
+                <nav aria-label="Nawigacja stron">
+                    <ul class="pagination">
+                        {% if logs.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.view_logs', page=logs.prev_num, **request.args) }}">
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        {% for page in logs.iter_pages() %}
+                            {% if page %}
+                                <li class="page-item {% if page == logs.page %}active{% endif %}">
+                                    <a class="page-link" href="{{ url_for('admin.view_logs', page=page, **request.args) }}">
+                                        {{ page }}
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if logs.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.view_logs', page=logs.next_num, **request.args) }}">
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-history"></i>
+                </div>
+                <h4>Brak logów</h4>
+                <p>Nie znaleziono żadnych logów spełniających kryteria.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.filter-buttons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Status badges */
+.badge-info {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.badge-warning {
+    background: rgba(234, 179, 8, 0.1);
+    color: #eab308;
+}
+
+.badge-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+/* Pagination */
+.pagination-wrapper {
+    padding: 1rem;
+    display: flex;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.7);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pagination {
+    display: flex;
+    gap: 0.25rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.page-item {
+    margin: 0;
+}
+
+.page-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 0.5rem;
+    border-radius: 0.375rem;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.page-link:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--text-primary);
+}
+
+.page-item.active .page-link {
+    background: var(--primary-color);
+    color: white;
+}
+
+.page-item.disabled .page-link {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+}
+
+/* Buttons */
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+    .filters-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .filter-buttons {
+        grid-column: 1 / -1;
+    }
+
+    .card-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .card-actions {
+        width: 100%;
+    }
+
+    .card-actions .btn {
+        flex: 1;
+    }
+}
+</style>
+{% endblock %} 

@@ -1,0 +1,383 @@
+{% extends "parent/layout.html" %}
+
+{% block title %}{{ tournament.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Mobile Back Button -->
+    <div class="d-md-none mb-3">
+        <a href="{{ url_for('parent.select_year') }}" class="btn btn-link text-muted ps-0">
+            <i class="fas fa-arrow-left me-2"></i>
+            Powrót
+        </a>
+    </div>
+
+    <!-- Tournament Header -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">{{ tournament.name }}</h1>
+            <div class="d-flex flex-wrap gap-3 text-muted small">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-map-marker-alt"></i>
+                    {{ tournament.address }}
+                </div>
+                {% if tournament.start_time %}
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-calendar"></i>
+                    {{ tournament.start_time|format_datetime }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2 align-items-center mt-3 mt-sm-0">
+            <span class="badge bg-{{ tournament.status }} rounded-pill">
+                {% if tournament.status == 'planned' %}
+                    <i class="fas fa-clock me-1"></i>Zaplanowany
+                {% elif tournament.status == 'ongoing' %}
+                    <i class="fas fa-play me-1"></i>W trakcie
+                {% else %}
+                    <i class="fas fa-check me-1"></i>Zakończony
+                {% endif %}
+            </span>
+            <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#tournamentInfoModal">
+                <i class="fas fa-info-circle"></i>
+                <span class="d-none d-sm-inline ms-1">Info</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Content Tabs -->
+    <div class="card shadow mb-4">
+        <div class="card-header p-0">
+            <ul class="nav nav-tabs card-header-tabs m-0" role="tablist">
+                <li class="nav-item flex-fill" role="presentation">
+                    <button class="nav-link active w-100" data-bs-toggle="tab" data-bs-target="#matches" type="button" role="tab">
+                        <i class="fas fa-futbol"></i>
+                        <span class="ms-2">Mecze</span>
+                    </button>
+                </li>
+                <li class="nav-item flex-fill" role="presentation">
+                    <button class="nav-link w-100" data-bs-toggle="tab" data-bs-target="#standings" type="button" role="tab">
+                        <i class="fas fa-list-ol"></i>
+                        <span class="ms-2">Tabela</span>
+                    </button>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body p-0">
+            <div class="tab-content">
+                <!-- Matches Tab -->
+                <div class="tab-pane fade show active" id="matches" role="tabpanel">
+                    {% if tournament.number_of_fields > 1 %}
+                    <div class="bg-light border-bottom p-3">
+                        <div class="btn-group btn-group-sm w-100">
+                            <button type="button" class="btn btn-light active" data-field="all">
+                                Wszystkie boiska
+                            </button>
+                            {% for field_num in range(1, tournament.number_of_fields + 1) %}
+                            <button type="button" class="btn btn-light" data-field="{{ field_num }}">
+                                Boisko {{ field_num }}
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if matches %}
+                    <div class="matches-list">
+                        <!-- Ongoing Matches -->
+                        {% set ongoing_matches = matches|selectattr('status', 'equalto', 'ongoing')|sort(attribute='start_time')|list %}
+                        {% if ongoing_matches %}
+                        <div class="matches-section">
+                            <div class="section-header bg-success bg-opacity-10 sticky-top">
+                                <i class="fas fa-play text-success"></i>
+                                <span>W trakcie</span>
+                            </div>
+                            <div class="p-3">
+                                {% for match in ongoing_matches %}
+                                    {% include 'parent/_match_card.html' %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Upcoming Matches -->
+                        {% set planned_matches = matches|selectattr('status', 'equalto', 'planned')|sort(attribute='start_time')|list %}
+                        {% if planned_matches %}
+                        <div class="matches-section">
+                            <div class="section-header bg-primary bg-opacity-10 sticky-top">
+                                <i class="fas fa-clock text-primary"></i>
+                                <span>Zaplanowane</span>
+                            </div>
+                            <div class="p-3">
+                                {% for match in planned_matches %}
+                                    {% include 'parent/_match_card.html' %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Finished Matches -->
+                        {% set finished_matches = matches|selectattr('status', 'equalto', 'finished')|sort(attribute='start_time', reverse=true)|list %}
+                        {% if finished_matches %}
+                        <div class="matches-section">
+                            <div class="section-header bg-secondary bg-opacity-10 sticky-top">
+                                <i class="fas fa-check text-secondary"></i>
+                                <span>Zakończone</span>
+                            </div>
+                            <div class="p-3">
+                                {% for match in finished_matches %}
+                                    {% include 'parent/_match_card.html' %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-futbol"></i>
+                        <p>Brak meczów</p>
+                        <span class="text-muted">Nie dodano jeszcze żadnych meczów do turnieju</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Standings Tab -->
+                <div class="tab-pane fade" id="standings" role="tabpanel">
+                    {% if team_stats %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-center" style="width: 40px">#</th>
+                                    <th>Drużyna</th>
+                                    <th class="text-center" style="width: 50px">M</th>
+                                    <th class="text-center d-none d-sm-table-cell" style="width: 50px">W</th>
+                                    <th class="text-center d-none d-sm-table-cell" style="width: 50px">R</th>
+                                    <th class="text-center d-none d-sm-table-cell" style="width: 50px">P</th>
+                                    <th class="text-center d-none d-md-table-cell" style="width: 50px">BS</th>
+                                    <th class="text-center d-none d-md-table-cell" style="width: 50px">BStr</th>
+                                    <th class="text-center d-none d-md-table-cell" style="width: 50px">RB</th>
+                                    <th class="text-center" style="width: 50px">Pkt</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stats in team_stats %}
+                                <tr>
+                                    <td class="text-center">{{ loop.index }}</td>
+                                    <td>
+                                        <div class="team-name">{{ stats.team.name }}</div>
+                                        <div class="team-stats d-sm-none small text-muted">
+                                            {{ stats.wins }}-{{ stats.draws }}-{{ stats.losses }}, 
+                                            {{ stats.goals_for }}:{{ stats.goals_against }}
+                                        </div>
+                                    </td>
+                                    <td class="text-center">{{ stats.matches_played }}</td>
+                                    <td class="text-center d-none d-sm-table-cell">{{ stats.wins }}</td>
+                                    <td class="text-center d-none d-sm-table-cell">{{ stats.draws }}</td>
+                                    <td class="text-center d-none d-sm-table-cell">{{ stats.losses }}</td>
+                                    <td class="text-center d-none d-md-table-cell">{{ stats.goals_for }}</td>
+                                    <td class="text-center d-none d-md-table-cell">{{ stats.goals_against }}</td>
+                                    <td class="text-center d-none d-md-table-cell">{{ stats.goals_for - stats.goals_against }}</td>
+                                    <td class="text-center fw-bold">{{ stats.points }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        
+                        <!-- Legend for mobile -->
+                        <div class="standings-legend d-sm-none border-top p-3 bg-light">
+                            <div>M - Mecze</div>
+                            <div>W-R-P - Wygrane-Remisy-Przegrane</div>
+                            <div>BS:BStr - Bramki strzelone:Bramki stracone</div>
+                            <div>Pkt - Punkty</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-list-ol"></i>
+                        <p>Brak tabeli</p>
+                        <span class="text-muted">Tabela zostanie wygenerowana po rozegraniu pierwszego meczu</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tournament Info Modal -->
+<div class="modal fade" id="tournamentInfoModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Informacje organizacyjne
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="list-group list-group-flush">
+                    {% if tournament.address %}
+                    <div class="list-group-item">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-map-marker-alt text-primary fa-fw fa-lg"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <div class="small text-muted">Adres</div>
+                                <div>{{ tournament.address }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="list-group-item">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-futbol text-primary fa-fw fa-lg"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <div class="small text-muted">Liczba boisk</div>
+                                <div>{{ tournament.number_of_fields }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="list-group-item">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-clock text-primary fa-fw fa-lg"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <div class="small text-muted">Czas meczu</div>
+                                <div>{{ tournament.match_length }} minut</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="list-group-item">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-hourglass-half text-primary fa-fw fa-lg"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <div class="small text-muted">Przerwa między meczami</div>
+                                <div>{{ tournament.break_length }} minut</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Matches list */
+.matches-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.matches-section {
+    border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.matches-section:last-child {
+    border-bottom: none;
+}
+
+.section-header {
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    z-index: 1020;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-state p {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+/* Nav tabs */
+.nav-tabs .nav-link {
+    border: none;
+    border-radius: 0;
+    padding: 1rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--primary);
+    background: var(--light);
+    border: none;
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--primary);
+    background: var(--light);
+    border: none;
+    border-bottom: 2px solid var(--primary);
+}
+
+/* Responsive */
+@media (max-width: 767.98px) {
+    .section-header {
+        position: sticky;
+        top: 0;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Field filtering
+    const fieldButtons = document.querySelectorAll('[data-field]');
+    const matchCards = document.querySelectorAll('.match-card');
+
+    fieldButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const field = this.dataset.field;
+            
+            // Update buttons
+            fieldButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+
+            // Filter matches
+            matchCards.forEach(card => {
+                if (field === 'all' || card.dataset.field === field) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+
+    // Initialize tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
+{% endblock %} 

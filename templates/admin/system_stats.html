@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Statystyki systemowe{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Statystyki systemowe</h1>
+        </div>
+    </div>
+
+    <!-- System metrics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">CPU</h5>
+                    <div class="progress mb-2">
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: {{ metrics.cpu_percent }}%"
+                             aria-valuenow="{{ metrics.cpu_percent }}" 
+                             aria-valuemin="0" aria-valuemax="100">
+                            {{ metrics.cpu_percent }}%
+                        </div>
+                    </div>
+                    <small class="text-muted">Użycie procesora</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">RAM</h5>
+                    <div class="progress mb-2">
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: {{ metrics.memory_percent }}%"
+                             aria-valuenow="{{ metrics.memory_percent }}" 
+                             aria-valuemin="0" aria-valuemax="100">
+                            {{ metrics.memory_percent }}%
+                        </div>
+                    </div>
+                    <small class="text-muted">{{ metrics.memory_used }} / {{ metrics.memory_total }} MB</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Dysk</h5>
+                    <div class="progress mb-2">
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: {{ metrics.disk_percent }}%"
+                             aria-valuenow="{{ metrics.disk_percent }}" 
+                             aria-valuemin="0" aria-valuemax="100">
+                            {{ metrics.disk_percent }}%
+                        </div>
+                    </div>
+                    <small class="text-muted">{{ metrics.disk_used }} / {{ metrics.disk_total }} GB</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Cache</h5>
+                    <div class="progress mb-2">
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: {{ metrics.cache_percent }}%"
+                             aria-valuenow="{{ metrics.cache_percent }}" 
+                             aria-valuemin="0" aria-valuemax="100">
+                            {{ metrics.cache_percent }}%
+                        </div>
+                    </div>
+                    <small class="text-muted">{{ metrics.cache_entries }} wpisów</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application stats -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Statystyki aplikacji</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Użytkownicy
+                            <span class="badge bg-primary rounded-pill">{{ stats.users_count }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Turnieje
+                            <span class="badge bg-primary rounded-pill">{{ stats.tournaments_count }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Drużyny
+                            <span class="badge bg-primary rounded-pill">{{ stats.teams_count }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Mecze
+                            <span class="badge bg-primary rounded-pill">{{ stats.matches_count }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Aktywność systemu</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Czas działania
+                            <span>{{ stats.uptime }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Ostatnia kopia zapasowa
+                            <span>{{ stats.last_backup|datetime }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Ostatnie czyszczenie logów
+                            <span>{{ stats.last_log_cleanup|datetime }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Rozmiar bazy danych
+                            <span>{{ stats.database_size }} MB</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Log stats -->
+    <div class="row">
+        <div class="col">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Statystyki logów</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Typ</th>
+                                    <th>24h</th>
+                                    <th>7 dni</th>
+                                    <th>30 dni</th>
+                                    <th>Wszystkie</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for type, counts in stats.log_stats.items() %}
+                                <tr>
+                                    <td>{{ type }}</td>
+                                    <td>{{ counts.day }}</td>
+                                    <td>{{ counts.week }}</td>
+                                    <td>{{ counts.month }}</td>
+                                    <td>{{ counts.total }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Refresh stats every 30 seconds
+    setInterval(function() {
+        location.reload();
+    }, 30000);
+</script>
+{% endblock %} 
