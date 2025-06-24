@@ -7,7 +7,8 @@ def test_new_user():
     user = User(
         email='test@test.com',
         password=bcrypt.generate_password_hash('test123').decode('utf-8'),
-        role='admin'
+        role='admin',
+        is_primary_admin=False
     )
     assert user.email == 'test@test.com'
     assert user.role == 'admin'
@@ -40,7 +41,8 @@ def test_user_authentication(app):
         user = User(
             email='auth@test.com',
             password=bcrypt.generate_password_hash(password).decode('utf-8'),
-            role='admin'
+            role='admin',
+            is_primary_admin=False
         )
         assert user.is_authenticated
         assert user.is_active
@@ -54,7 +56,8 @@ def test_user_unique_email(app):
         user1 = User(
             email='unique@test.com',
             password=bcrypt.generate_password_hash('test123').decode('utf-8'),
-            role='admin'
+            role='admin',
+            is_primary_admin=False
         )
         from extensions import db
         db.session.add(user1)
@@ -65,7 +68,8 @@ def test_user_unique_email(app):
             user2 = User(
                 email='unique@test.com',
                 password=bcrypt.generate_password_hash('test123').decode('utf-8'),
-                role='admin'
+                role='admin',
+                is_primary_admin=False
             )
             db.session.add(user2)
             db.session.commit() 

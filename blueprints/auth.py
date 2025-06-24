@@ -35,6 +35,8 @@ def login(role=None):
                     return redirect(url_for('auth.login'))
                     
                 login_user(user, remember=form.remember_me.data)
+                if form.remember_me.data:
+                    session.permanent = True
                 current_app.logger.info("User logged in successfully")
                 
                 LoggingService.add_log(

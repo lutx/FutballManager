@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Any, Tuple
+from typing import Dict, Optional, Any, Tuple, List
 from datetime import datetime
 from flask import current_app
 from sqlalchemy.orm import joinedload

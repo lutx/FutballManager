@@ -7,7 +7,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(60), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='admin')
-    is_primary_admin = db.Column(db.Boolean, default=False)
+    is_primary_admin = db.Column(db.Boolean, nullable=False, default=False)
 
 class Year(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -25,8 +25,8 @@ class Tournament(db.Model):
     number_of_fields = db.Column(db.Integer, default=1)
     match_length = db.Column(db.Integer, default=20)
     break_length = db.Column(db.Integer, default=5)
-    teams = db.relationship('Team', backref='tournament', lazy=True)
-    matches = db.relationship('Match', backref='tournament', lazy=True)
+    teams = db.relationship('Team', backref='tournament', lazy=True, cascade='all, delete-orphan')
+    matches = db.relationship('Match', backref='tournament', lazy=True, cascade='all, delete-orphan')
 
 class Team(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -60,6 +60,9 @@ class SystemSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(50), unique=True, nullable=False)
     value = db.Column(db.Text)
+
+# Alias for backward compatibility
+SystemConfig = SystemSettings
 
 class TournamentStanding(db.Model):
     id = db.Column(db.Integer, primary_key=True)
