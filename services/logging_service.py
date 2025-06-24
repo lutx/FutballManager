@@ -1,26 +1,29 @@
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import fcntl
+import platform
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 from sqlalchemy import desc
 from models import SystemLog, db
 from flask import current_app
-import msvcrt
 import time
 
 class SafeRotatingFileHandler(RotatingFileHandler):
+    """Cross-platform safe rotating file handler."""
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.lock_file = f"{self.baseFilename}.lock"
 
     def acquire_lock(self):
-        """Bezpieczne uzyskanie blokady pliku dla Windows."""
-        for _ in range(5):  # 5 prób
+        """Safely acquire file lock for cross-platform support."""
+        for _ in range(5):  # 5 attempts
             try:
                 if os.path.exists(self.lock_file):
-                    # Jeśli plik blokady istnieje, sprawdź czy nie jest przestarzały
-                    if time.time() - os.path.getmtime(self.lock_file) > 10:  # 10 sekund
+                    # If lock file exists, check if it's stale
+                    if time.time() - os.path.getmtime(self.lock_file) > 10:  # 10 seconds
                         try:
                             os.remove(self.lock_file)
                         except:
@@ -29,10 +32,12 @@ class SafeRotatingFileHandler(RotatingFileHandler):
                         time.sleep(0.1)
                         continue
 
-                # Próba utworzenia pliku blokady
+                # Try to create lock file
                 lock_file = open(self.lock_file, 'wb')
                 try:
-                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                    if platform.system() != 'Windows':
+                        # Unix/Linux file locking
+                        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                     return lock_file
                 except:
                     lock_file.close()
@@ -46,10 +51,11 @@ class SafeRotatingFileHandler(RotatingFileHandler):
         return None
 
     def release_lock(self, lock_file):
-        """Zwolnienie blokady pliku dla Windows."""
+        """Release file lock for cross-platform support."""
         if lock_file:
             try:
-                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+                if platform.system() != 'Windows':
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
             except:
                 pass
             lock_file.close()
@@ -59,10 +65,10 @@ class SafeRotatingFileHandler(RotatingFileHandler):
                 pass
 
     def doRollover(self):
-        """Bezpieczna rotacja plików logów."""
+        """Safe log file rotation."""
         lock_file = self.acquire_lock()
         if not lock_file:
-            return  # Jeśli nie można uzyskać blokady, pomijamy rotację
+            return  # Skip rotation if can't acquire lock
 
         try:
             super().doRollover()
@@ -72,17 +78,17 @@ class SafeRotatingFileHandler(RotatingFileHandler):
 class LoggingService:
     @staticmethod
     def setup_logging(app):
-        """Konfiguracja systemu logowania z obsługą błędów."""
+        """Configure logging system with error handling."""
         try:
-            # Upewnij się, że katalog logs istnieje
+            # Ensure logs directory exists
             if not os.path.exists('logs'):
                 os.makedirs('logs', exist_ok=True)
 
-            # Usuń stare handlery
+            # Remove old handlers
             for handler in app.logger.handlers[:]:
                 app.logger.removeHandler(handler)
 
-            # Konfiguracja nowego handlera z bezpieczną rotacją
+            # Configure new handler with safe rotation
             file_handler = SafeRotatingFileHandler(
                 'logs/app.log',
                 maxBytes=10485760,  # 10MB
@@ -91,7 +97,7 @@ class LoggingService:
                 delay=True
             )
 
-            # Konfiguracja formatowania
+            # Configure formatting
             formatter = logging.Formatter(
                 '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
                 datefmt='%Y-%m-%d %H:%M:%S'
@@ -99,27 +105,27 @@ class LoggingService:
             file_handler.setFormatter(formatter)
             file_handler.setLevel(logging.INFO)
 
-            # Dodaj handler do loggera aplikacji
+            # Add handler to app logger
             app.logger.addHandler(file_handler)
             app.logger.setLevel(logging.INFO)
 
-            # Dodaj handler konsoli w trybie debug
+            # Add console handler in debug mode
             if app.debug:
                 console_handler = logging.StreamHandler()
                 console_handler.setFormatter(formatter)
                 console_handler.setLevel(logging.DEBUG)
                 app.logger.addHandler(console_handler)
 
-            app.logger.info('System logowania został zainicjalizowany')
+            app.logger.info('Logging system initialized successfully')
 
         except Exception as e:
-            print(f"BŁĄD: Nie można skonfigurować systemu logowania: {str(e)}")
-            # Fallback do podstawowego logowania
+            print(f"ERROR: Cannot configure logging system: {str(e)}")
+            # Fallback to basic logging
             logging.basicConfig(level=logging.INFO)
 
     @staticmethod
     def add_log(type: str, user: str, action: str, details: Optional[str] = None) -> Optional[SystemLog]:
-        """Bezpieczne dodawanie logów z obsługą błędów."""
+        """Safely add logs with error handling."""
         try:
             log = SystemLog(
                 type=type,
@@ -132,7 +138,7 @@ class LoggingService:
             db.session.add(log)
             db.session.commit()
 
-            # Logowanie do pliku
+            # Log to file
             message = f"{action}: {details}" if details else action
             if type == 'error':
                 current_app.logger.error(message)
@@ -142,7 +148,7 @@ class LoggingService:
             return log
 
         except Exception as e:
-            error_msg = f"Błąd podczas dodawania logu: {str(e)}"
+            error_msg = f"Error adding log: {str(e)}"
             print(error_msg)  # Fallback logging
             try:
                 db.session.rollback()
@@ -161,7 +167,7 @@ class LoggingService:
         page: int = 1,
         per_page: int = 50
     ) -> tuple[List[SystemLog], int]:
-        """Pobieranie logów z obsługą błędów i paginacją."""
+        """Get logs with error handling and pagination."""
         try:
             query = SystemLog.query
 
@@ -185,13 +191,13 @@ class LoggingService:
             return logs, total
 
         except Exception as e:
-            error_msg = f"Błąd podczas pobierania logów: {str(e)}"
+            error_msg = f"Error retrieving logs: {str(e)}"
             current_app.logger.error(error_msg)
             return [], 0
 
     @staticmethod
     def get_log_summary(days: int = 7) -> Dict:
-        """Generuje podsumowanie logów z ostatnich X dni."""
+        """Generate log summary for the last X days."""
         try:
             start_date = datetime.utcnow() - timedelta(days=days)
             logs = SystemLog.query.filter(SystemLog.timestamp >= start_date).all()
@@ -208,37 +214,37 @@ class LoggingService:
             }
 
             for log in logs:
-                # Liczenie według typu
+                # Count by type
                 summary['by_type'][log.type] = summary['by_type'].get(log.type, 0) + 1
-                # Liczenie według akcji
+                # Count by action
                 summary['by_action'][log.action] = summary['by_action'].get(log.action, 0) + 1
-                # Liczenie według użytkownika
+                # Count by user
                 summary['by_user'][log.user] = summary['by_user'].get(log.user, 0) + 1
 
             return summary
         except Exception as e:
-            current_app.logger.error(f'Błąd podczas generowania podsumowania logów: {str(e)}')
+            current_app.logger.error(f'Error generating log summary: {str(e)}')
             raise
 
     @staticmethod
     def clear_old_logs(days: int = 30) -> bool:
-        """Bezpieczne czyszczenie starych logów."""
+        """Safely clear old logs."""
         try:
             cutoff_date = datetime.utcnow() - timedelta(days=days)
             deleted = SystemLog.query.filter(SystemLog.timestamp < cutoff_date).delete()
             db.session.commit()
-            current_app.logger.info(f"Usunięto {deleted} starych logów")
+            current_app.logger.info(f"Deleted {deleted} old logs")
             return True
 
         except Exception as e:
-            error_msg = f"Błąd podczas czyszczenia starych logów: {str(e)}"
+            error_msg = f"Error clearing old logs: {str(e)}"
             current_app.logger.error(error_msg)
             db.session.rollback()
             return False
 
     @staticmethod
     def get_user_activity(user: str, days: int = 7) -> List[SystemLog]:
-        """Pobiera aktywność konkretnego użytkownika z ostatnich X dni."""
+        """Get specific user activity from the last X days."""
         try:
             start_date = datetime.utcnow() - timedelta(days=days)
             logs = SystemLog.query.filter(
@@ -247,14 +253,14 @@ class LoggingService:
             ).order_by(desc(SystemLog.timestamp)).all()
             return logs
         except Exception as e:
-            current_app.logger.error(f'Błąd podczas pobierania aktywności użytkownika: {str(e)}')
+            current_app.logger.error(f'Error retrieving user activity: {str(e)}')
             raise
 
     @staticmethod
     def get_recent_logs(limit=100):
-        """Pobiera ostatnie logi z systemu."""
+        """Get recent logs from system."""
         try:
             return SystemLog.query.order_by(SystemLog.timestamp.desc()).limit(limit).all()
         except Exception as e:
-            current_app.logger.error(f'Błąd podczas pobierania logów: {str(e)}')
+            current_app.logger.error(f'Error retrieving logs: {str(e)}')
             return [] 

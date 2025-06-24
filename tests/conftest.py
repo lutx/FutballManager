@@ -37,9 +37,17 @@ def runner(app):
 
 @pytest.fixture
 def auth_client(client):
-    client.post('/login', data={
+    from flask import url_for
+    
+    # Get CSRF token first
+    with client.session_transaction() as sess:
+        sess['_csrf_token'] = 'test_token'
+    
+    client.post(url_for('auth.login', role='admin'), data={
         'email': 'test@admin.com',
-        'password': 'test123'
+        'password': 'test123',
+        'remember_me': False,
+        'csrf_token': 'test_token'
     }, follow_redirects=True)
     return client
 

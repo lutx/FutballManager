@@ -15,7 +15,7 @@ def test_successful_admin_login(client):
         'remember_me': False
     }, follow_redirects=True)
     assert response.status_code == 200
-    assert 'Panel administratora' in response.get_data(as_text=True)
+    assert 'Panel Administratora' in response.get_data(as_text=True)
 
 def test_failed_login(client):
     """Test nieudanego logowania"""
@@ -43,7 +43,7 @@ def test_admin_access(auth_client):
     """Test dostępu do panelu admina"""
     response = auth_client.get('/admin/dashboard')
     assert response.status_code == 200
-    assert b'Panel administratora' in response.data
+    assert b'Panel Administratora' in response.data
 
 def test_invalid_access(client):
     """Test dostępu do nieistniejącej strony"""
@@ -61,10 +61,16 @@ def test_csrf_protection(client):
 
 def test_remember_me(client):
     """Test funkcji 'zapamiętaj mnie'"""
-    response = client.post('/login', data={
+    with client.session_transaction() as sess:
+        sess['_csrf_token'] = 'test_token'
+    
+    response = client.post(url_for('auth.login', role='admin'), data={
         'email': 'test@admin.com',
         'password': 'test123',
-        'remember': True
+        'remember_me': True,
+        'csrf_token': 'test_token'
     }, follow_redirects=True)
     assert response.status_code == 200
-    assert session.permanent == True 
+    
+    with client.session_transaction() as sess:
+        assert sess.permanent == True 

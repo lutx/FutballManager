@@ -68,7 +68,7 @@ def create_app(config_name='default'):
             csrf = CSRFProtect()
             csrf.init_app(app)
             socketio.init_app(app, cors_allowed_origins="*", 
-                            async_mode='eventlet', 
+                            async_mode='threading', 
                             logger=True, 
                             engineio_logger=True)
             cache.init_app(app)

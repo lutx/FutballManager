@@ -2,6 +2,7 @@ from flask import render_template, redirect, url_for, flash, request, session, a
 from flask_login import login_required, current_user, logout_user
 from flask_wtf import FlaskForm
 from models import User, Year, Tournament, Team, Match, SystemLog, SystemSettings
+from forms.auth import LoginForm
 from extensions import db, bcrypt
 import os
 from werkzeug.utils import secure_filename
@@ -128,7 +129,7 @@ def init_views(app):
             # For parent role, redirect directly to year selection
             return redirect(url_for('parent_select_year'))
         
-        return render_template('login.html', role_selected=None, form=form, logo_path=logo_path)
+        return render_template('auth/login.html', role_selected=None, form=form, logo_path=logo_path)
 
     @app.route('/parent/select-year')
     def parent_select_year():

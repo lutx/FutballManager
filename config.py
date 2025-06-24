@@ -15,7 +15,6 @@ class BaseConfig:
     # Database Configuration
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
-
         'pool_size': 10,
         'pool_recycle': 3600,
         'pool_pre_ping': True,
@@ -23,15 +22,6 @@ class BaseConfig:
         'max_overflow': 20
     }
     SQLALCHEMY_ECHO = False
-    
-    # Cache Redis/Memory (for future implementation)
-    CACHE_TYPE = 'simple'  # Can be changed to 'redis' later
-    CACHE_DEFAULT_TIMEOUT = 300
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-        'pool_size': 10,
-        'max_overflow': 0
-    }
 
     SESSION_COOKIE_NAME = 'football_session'
     
@@ -44,6 +34,7 @@ class BaseConfig:
     # Trusted hosts for security
     TRUSTED_HOSTS = os.environ.get('TRUSTED_HOSTS', '').split(',') if os.environ.get('TRUSTED_HOSTS') else []
 
+    # Rate Limiting
     API_RATE_LIMIT = '100 per minute'
     RATELIMIT_STORAGE_URL = 'memory://'  # Can be changed to Redis later
     
@@ -54,12 +45,9 @@ class BaseConfig:
     # Pagination
     DEFAULT_PAGE_SIZE = 20
     MAX_PAGE_SIZE = 100
-
-    API_RATE_LIMIT = '1000 per hour'
     
     # Caching Configuration
-    CACHE_TYPE = 'redis'
-    CACHE_REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    CACHE_TYPE = 'simple'  # Will be upgraded to Redis in production
     CACHE_DEFAULT_TIMEOUT = 300
     CACHE_KEY_PREFIX = 'football_app:'
     
@@ -84,7 +72,7 @@ class BaseConfig:
     EXPLAIN_TEMPLATE_LOADING = False
     
     # WebSocket Configuration
-    SOCKETIO_ASYNC_MODE = 'eventlet'
+    SOCKETIO_ASYNC_MODE = 'threading'
     SOCKETIO_PING_TIMEOUT = 60
     SOCKETIO_PING_INTERVAL = 25
     
@@ -98,3 +86,61 @@ class BaseConfig:
     def init_app(app):
         """Initialize application with configuration."""
         pass
+
+class DevelopmentConfig(BaseConfig):
+    """Development configuration."""
+    DEBUG = True
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DEV_DATABASE_URL') or 'sqlite:///football_dev.db'
+    CACHE_TYPE = 'simple'
+    RATELIMIT_ENABLED = False
+    TEMPLATES_AUTO_RELOAD = True
+
+class TestingConfig(BaseConfig):
+    """Testing configuration."""
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or 'sqlite:///:memory:'
+    WTF_CSRF_ENABLED = False
+    CACHE_TYPE = 'simple'
+    RATELIMIT_ENABLED = False
+    
+    # Override SQLAlchemy engine options for SQLite (no pooling)
+    SQLALCHEMY_ENGINE_OPTIONS = {}
+
+class ProductionConfig(BaseConfig):
+    """Production configuration."""
+    DEBUG = False
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///football.db'
+    
+    # Production caching with Redis
+    CACHE_TYPE = 'redis'
+    CACHE_REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    RATELIMIT_STORAGE_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/1')
+    
+    # Enhanced security for production
+    SESSION_COOKIE_SECURE = True
+    WTF_CSRF_SSL_STRICT = True
+    
+    @classmethod
+    def init_app(cls, app):
+        BaseConfig.init_app(app)
+        
+        # Production logging
+        import logging
+        from logging.handlers import RotatingFileHandler
+        
+        file_handler = RotatingFileHandler('logs/football.log', maxBytes=10240, backupCount=10)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+        
+        app.logger.setLevel(logging.INFO)
+        app.logger.info('Football Manager startup')
+
+config = {
+    'development': DevelopmentConfig,
+    'testing': TestingConfig,
+    'production': ProductionConfig,
+    'default': DevelopmentConfig
+}
