@@ -1,67 +1,97 @@
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional, Dict, List, Callable
 from datetime import datetime, timedelta
 import json
 from flask import current_app
 from functools import wraps
+import time
 
-from models import SystemLog
+from models import SystemLog, Tournament, Team, Match, TournamentStanding
 from services.base_service import BaseService
 from services.config_service import ConfigService
+from extensions import db
 
 class CacheService(BaseService):
-    def __init__(self):
-        super().__init__()
-        self.config_service = ConfigService()
-        self._cache = {}
-        self._cache_times = {}
+    _instance = None
+    _cache: Dict[str, Any] = {}
+    _cache_times: Dict[str, datetime] = {}
 
-    def get(self, key: str) -> Optional[Any]:
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(CacheService, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        if not hasattr(self, 'initialized'):
+            super().__init__()
+            self.config_service = ConfigService()
+            self.initialized = True
+
+    @classmethod
+    def get(cls, key: str) -> Optional[Any]:
         """Pobiera wartość z cache'u"""
         try:
-            if key not in self._cache or key not in self._cache_times:
+            if key not in cls._cache or key not in cls._cache_times:
                 return None
 
             # Sprawdź czy wartość nie wygasła
-            if datetime.utcnow() > self._cache_times[key]:
-                self.delete(key)
+            if datetime.utcnow() > cls._cache_times[key]:
+                cls.delete(key)
                 return None
 
-            return self._cache[key]
+            return cls._cache[key]
         except Exception as e:
             current_app.logger.error(f'Error getting from cache: {str(e)}')
             return None
 
-    def set(self, key: str, value: Any, expires_in: int = 300) -> bool:
+    @classmethod
+    def set(cls, key: str, value: Any, expires_in: int = 300) -> bool:
         """Zapisuje wartość w cache'u"""
         try:
-            self._cache[key] = value
-            self._cache_times[key] = datetime.utcnow() + timedelta(seconds=expires_in)
+            cls._cache[key] = value
+            cls._cache_times[key] = datetime.utcnow() + timedelta(seconds=expires_in)
             return True
         except Exception as e:
             current_app.logger.error(f'Error setting cache: {str(e)}')
             return False
 
-    def delete(self, key: str) -> bool:
+    @classmethod
+    def delete(cls, key: str) -> bool:
         """Usuwa wartość z cache'u"""
         try:
-            if key in self._cache:
-                del self._cache[key]
-            if key in self._cache_times:
-                del self._cache_times[key]
+            if key in cls._cache:
+                del cls._cache[key]
+            if key in cls._cache_times:
+                del cls._cache_times[key]
             return True
         except Exception as e:
             current_app.logger.error(f'Error deleting from cache: {str(e)}')
             return False
 
-    def clear(self) -> bool:
+    @classmethod
+    def clear(cls) -> bool:
         """Czyści cały cache"""
         try:
-            self._cache.clear()
-            self._cache_times.clear()
+            cls._cache.clear()
+            cls._cache_times.clear()
             return True
         except Exception as e:
             current_app.logger.error(f'Error clearing cache: {str(e)}')
             return False
+
+    @classmethod
+    def get_or_set(cls, key: str, callback: Callable, timeout: int = 300) -> Any:
+        """Get from cache or set using callback if not found."""
+        value = cls.get(key)
+        if value is not None:
+            return value
+        
+        try:
+            value = callback()
+            cls.set(key, value, timeout)
+            return value
+        except Exception as e:
+            current_app.logger.error(f"Cache get_or_set error: {str(e)}")
+            return callback()  # Fallback to direct call
 
     def get_stats(self) -> Dict:
         """Zwraca statystyki cache'u"""
@@ -99,7 +129,7 @@ class CacheService(BaseService):
                 elif isinstance(value, (int, float)):
                     total_size += 8
                 elif isinstance(value, (list, dict, tuple)):
-                    total_size += len(json.dumps(value).encode('utf-8'))
+                    total_size += len(json.dumps(value, default=str).encode('utf-8'))
                 else:
                     # Dla innych typów szacujemy
                     total_size += 100
@@ -124,7 +154,8 @@ class CacheService(BaseService):
             return 0
 
     # Dekoratory do cache'owania
-    def cached(self, key_prefix: str, expires_in: int = 300):
+    @classmethod
+    def cached(cls, key_prefix: str, expires_in: int = 300):
         """Dekorator do cache'owania wyników funkcji"""
         def decorator(func):
             @wraps(func)
@@ -137,39 +168,41 @@ class CacheService(BaseService):
                     cache_key += ":".join(f"{k}={v}" for k, v in sorted(kwargs.items()))
 
                 # Sprawdź cache
-                cached_value = self.get(cache_key)
+                cached_value = cls.get(cache_key)
                 if cached_value is not None:
                     return cached_value
 
                 # Wykonaj funkcję i zapisz wynik
                 result = func(*args, **kwargs)
-                self.set(cache_key, result, expires_in)
+                cls.set(cache_key, result, expires_in)
                 return result
             return wrapper
         return decorator
 
-    def invalidate_pattern(self, pattern: str) -> int:
+    @classmethod
+    def invalidate_pattern(cls, pattern: str) -> int:
         """Usuwa wszystkie wpisy z cache'u pasujące do wzorca"""
         try:
             keys_to_delete = [
-                key for key in self._cache.keys()
+                key for key in cls._cache.keys()
                 if pattern in key
             ]
             
             for key in keys_to_delete:
-                self.delete(key)
+                cls.delete(key)
 
             return len(keys_to_delete)
         except Exception as e:
             current_app.logger.error(f'Error invalidating cache pattern: {str(e)}')
             return 0
 
-    def get_keys(self, pattern: Optional[str] = None) -> List[str]:
+    @classmethod
+    def get_keys(cls, pattern: Optional[str] = None) -> List[str]:
         """Zwraca listę kluczy w cache'u"""
         try:
             if pattern:
-                return [key for key in self._cache.keys() if pattern in key]
-            return list(self._cache.keys())
+                return [key for key in cls._cache.keys() if pattern in key]
+            return list(cls._cache.keys())
         except Exception as e:
             current_app.logger.error(f'Error getting cache keys: {str(e)}')
             return []
@@ -187,4 +220,141 @@ class CacheService(BaseService):
             self.add(log)
             self.commit()
         except Exception as e:
-            current_app.logger.error(f'Error logging cache operation: {str(e)}') 
+            current_app.logger.error(f'Error logging cache operation: {str(e)}')
+
+    @classmethod
+    def get_tournament_stats(cls, tournament_id: int, force_refresh: bool = False) -> Dict:
+        """Get cached tournament statistics."""
+        cache_key = f"tournament_stats:{tournament_id}"
+        
+        if force_refresh:
+            cls.delete(cache_key)
+        
+        def calculate_stats():
+            try:
+                tournament = Tournament.query.get(tournament_id)
+                if not tournament:
+                    return {}
+                
+                teams = Team.query.filter_by(tournament_id=tournament_id).all()
+                matches = Match.query.filter_by(tournament_id=tournament_id).all()
+                
+                stats = {
+                    'total_teams': len(teams),
+                    'total_matches': len(matches),
+                    'completed_matches': len([m for m in matches if m.status == 'finished']),
+                    'ongoing_matches': len([m for m in matches if m.status == 'ongoing']),
+                    'planned_matches': len([m for m in matches if m.status == 'planned']),
+                    'total_goals': sum((m.team1_score or 0) + (m.team2_score or 0) 
+                                     for m in matches if m.status == 'finished'),
+                    'updated_at': datetime.utcnow().isoformat()
+                }
+                
+                return stats
+            except Exception as e:
+                current_app.logger.error(f"Error calculating tournament stats: {str(e)}")
+                return {}
+        
+        return cls.get_or_set(cache_key, calculate_stats, timeout=600)  # 10 minutes
+    
+    @classmethod
+    def get_team_standings(cls, tournament_id: int, force_refresh: bool = False) -> List[Dict]:
+        """Get cached team standings for tournament."""
+        cache_key = f"team_standings:{tournament_id}"
+        
+        if force_refresh:
+            cls.delete(cache_key)
+        
+        def calculate_standings():
+            try:
+                teams = Team.query.filter_by(tournament_id=tournament_id).all()
+                matches = Match.query.filter_by(tournament_id=tournament_id, status='finished').all()
+                
+                standings = []
+                for team in teams:
+                    stats = {
+                        'team_id': team.id,
+                        'team_name': team.name,
+                        'matches_played': 0,
+                        'wins': 0,
+                        'draws': 0,
+                        'losses': 0,
+                        'goals_for': 0,
+                        'goals_against': 0,
+                        'goal_difference': 0,
+                        'points': 0
+                    }
+                    
+                    for match in matches:
+                        if match.team1_id == team.id:
+                            stats['matches_played'] += 1
+                            stats['goals_for'] += match.team1_score or 0
+                            stats['goals_against'] += match.team2_score or 0
+                            
+                            if match.team1_score > match.team2_score:
+                                stats['wins'] += 1
+                                stats['points'] += 3
+                            elif match.team1_score == match.team2_score:
+                                stats['draws'] += 1
+                                stats['points'] += 1
+                            else:
+                                stats['losses'] += 1
+                                
+                        elif match.team2_id == team.id:
+                            stats['matches_played'] += 1
+                            stats['goals_for'] += match.team2_score or 0
+                            stats['goals_against'] += match.team1_score or 0
+                            
+                            if match.team2_score > match.team1_score:
+                                stats['wins'] += 1
+                                stats['points'] += 3
+                            elif match.team1_score == match.team2_score:
+                                stats['draws'] += 1
+                                stats['points'] += 1
+                            else:
+                                stats['losses'] += 1
+                    
+                    stats['goal_difference'] = stats['goals_for'] - stats['goals_against']
+                    standings.append(stats)
+                
+                # Sort by points, then goal difference, then goals for
+                standings.sort(key=lambda x: (-x['points'], -x['goal_difference'], -x['goals_for']))
+                
+                return standings
+            except Exception as e:
+                current_app.logger.error(f"Error calculating team standings: {str(e)}")
+                return []
+        
+        return cls.get_or_set(cache_key, calculate_standings, timeout=300)  # 5 minutes
+    
+    @classmethod
+    def invalidate_tournament_cache(cls, tournament_id: int) -> None:
+        """Invalidate all cache entries related to a tournament."""
+        try:
+            keys_to_delete = []
+            for key in cls._cache.keys():
+                if f":{tournament_id}" in key or f"tournament:{tournament_id}" in key:
+                    keys_to_delete.append(key)
+            
+            for key in keys_to_delete:
+                cls.delete(key)
+                
+        except Exception as e:
+            current_app.logger.error(f"Error invalidating tournament cache: {str(e)}")
+    
+    @classmethod
+    def get_cache_stats(cls) -> Dict:
+        """Get cache statistics."""
+        try:
+            now = datetime.utcnow()
+            expired_count = sum(1 for exp_time in cls._cache_times.values() if now > exp_time)
+            
+            return {
+                'total_keys': len(cls._cache),
+                'expired_keys': expired_count,
+                'active_keys': len(cls._cache) - expired_count,
+                'memory_usage_mb': sum(len(str(v)) for v in cls._cache.values()) / 1024 / 1024
+            }
+        except Exception as e:
+            current_app.logger.error(f"Error getting cache stats: {str(e)}")
+            return {} 

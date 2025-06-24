@@ -10,11 +10,24 @@ class BaseConfig:
     
     # Baza danych
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 10,
+        'pool_recycle': 3600,
+        'pool_pre_ping': True,
+        'pool_timeout': 30,
+        'max_overflow': 20
+    }
+    SQLALCHEMY_ECHO = False
+    
+    # Cache Redis/Memory (for future implementation)
+    CACHE_TYPE = 'simple'  # Can be changed to 'redis' later
+    CACHE_DEFAULT_TIMEOUT = 300
     
     # Sesja
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
     
     # Upload
     UPLOAD_FOLDER = 'static/uploads'
@@ -30,6 +43,15 @@ class BaseConfig:
     # Rate limiting
     LOGIN_RATE_LIMIT = '5 per minute'
     API_RATE_LIMIT = '100 per minute'
+    RATELIMIT_STORAGE_URL = 'memory://'  # Can be changed to Redis later
+    
+    # Performance monitoring
+    MONITORING_ENABLED = True
+    MONITORING_INTERVAL = 60  # seconds
+    
+    # Pagination
+    DEFAULT_PAGE_SIZE = 20
+    MAX_PAGE_SIZE = 100
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True
