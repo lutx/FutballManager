@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}429 - Too Many Requests{% endblock %}
+
+{% block content %}
+<div class="container-fluid h-100 d-flex align-items-center justify-content-center">
+    <div class="row justify-content-center w-100">
+        <div class="col-md-6 col-lg-4">
+            <div class="text-center">
+                <!-- Error Icon with animation -->
+                <div class="error-icon mb-4">
+                    <i class="bi bi-clock" style="font-size: 6rem; color: var(--warning-color);"></i>
+                </div>
+                
+                <!-- Error Code -->
+                <h1 class="display-1 fw-bold text-warning mb-3">429</h1>
+                
+                <!-- Error Message -->
+                <h2 class="h4 mb-3">Too Many Requests</h2>
+                <p class="text-muted mb-4">
+                    You've made too many requests in a short period. 
+                    Please wait a moment before trying again.
+                </p>
+                
+                <!-- Countdown Timer -->
+                <div class="card mb-4" style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2);">
+                    <div class="card-body">
+                        <h5 class="card-title text-warning">
+                            <i class="bi bi-hourglass-split me-2"></i>
+                            Please wait...
+                        </h5>
+                        <p class="card-text mb-2">You can try again in:</p>
+                        <div id="countdown" class="h4 text-warning mb-0">60 seconds</div>
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="d-grid gap-2 d-md-block">
+                    <button id="retryBtn" class="btn btn-warning" disabled>
+                        <i class="bi bi-arrow-clockwise me-2"></i>Try Again
+                    </button>
+                    <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-house me-2"></i>Go Home
+                    </a>
+                </div>
+                
+                <!-- Tips -->
+                <div class="mt-4 pt-4 border-top">
+                    <h6 class="text-warning mb-3">
+                        <i class="bi bi-lightbulb me-2"></i>Tips to avoid this:
+                    </h6>
+                    <ul class="list-unstyled text-start small text-muted">
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Refresh the page less frequently
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Wait a few seconds between actions
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Use the real-time updates feature
+                        </li>
+                    </ul>
+                </div>
+                
+                <!-- Additional Info -->
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Error Code: 429 - Rate Limited
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .error-icon {
+        animation: rotate 3s linear infinite;
+    }
+    
+    @keyframes rotate {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+    
+    .display-1 {
+        text-shadow: 0 4px 8px rgba(245, 158, 11, 0.1);
+    }
+    
+    #countdown {
+        font-family: 'JetBrains Mono', monospace;
+        animation: pulse 1s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.7;
+        }
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let timeLeft = 60; // 60 seconds countdown
+    const countdownElement = document.getElementById('countdown');
+    const retryBtn = document.getElementById('retryBtn');
+    
+    const countdown = setInterval(function() {
+        timeLeft--;
+        
+        if (timeLeft <= 0) {
+            clearInterval(countdown);
+            countdownElement.textContent = '0 seconds';
+            retryBtn.disabled = false;
+            retryBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Try Again';
+            retryBtn.addEventListener('click', function() {
+                window.location.reload();
+            });
+        } else {
+            countdownElement.textContent = timeLeft + ' second' + (timeLeft === 1 ? '' : 's');
+        }
+    }, 1000);
+    
+    // Auto-refresh when countdown reaches 0
+    setTimeout(function() {
+        window.location.reload();
+    }, 60000);
+});
+</script>
+{% endblock %}
