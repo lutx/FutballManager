@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}403 - Access Forbidden{% endblock %}
+
+{% block content %}
+<div class="container-fluid h-100 d-flex align-items-center justify-content-center">
+    <div class="row justify-content-center w-100">
+        <div class="col-md-6 col-lg-4">
+            <div class="text-center">
+                <!-- Error Icon -->
+                <div class="error-icon mb-4">
+                    <i class="bi bi-shield-exclamation" style="font-size: 6rem; color: var(--danger-color);"></i>
+                </div>
+                
+                <!-- Error Code -->
+                <h1 class="display-1 fw-bold text-primary mb-3">403</h1>
+                
+                <!-- Error Message -->
+                <h2 class="h4 mb-3">Access Forbidden</h2>
+                <p class="text-muted mb-4">
+                    Sorry, you don't have permission to access this resource. 
+                    Please contact an administrator if you believe this is an error.
+                </p>
+                
+                <!-- Action Buttons -->
+                <div class="d-grid gap-2 d-md-block">
+                    <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+                        <i class="bi bi-house me-2"></i>Go Home
+                    </a>
+                    {% if current_user.is_authenticated %}
+                        {% if current_user.role == 'admin' %}
+                            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for('parent.select_year') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-calendar3 me-2"></i>Tournaments
+                            </a>
+                        {% endif %}
+                    {% else %}
+                        <a href="{{ url_for('auth.login') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                        </a>
+                    {% endif %}
+                </div>
+                
+                <!-- Additional Help -->
+                <div class="mt-4 pt-4 border-top">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Error Code: 403 - Forbidden
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .error-icon {
+        animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% {
+            transform: scale(1);
+        }
+        50% {
+            transform: scale(1.05);
+        }
+    }
+    
+    .display-1 {
+        text-shadow: 0 4px 8px rgba(79, 70, 229, 0.1);
+    }
+</style>
+{% endblock %}

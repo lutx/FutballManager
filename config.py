@@ -3,14 +3,19 @@ import secrets
 from datetime import timedelta
 
 class BaseConfig:
-    # Bezpieczeństwo
+    """Base configuration with modern 2025 security standards."""
+    
+    # Enhanced Security Configuration
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+    SECRET_KEY_FALLBACKS = [os.environ.get('SECRET_KEY_FALLBACK')] if os.environ.get('SECRET_KEY_FALLBACK') else []
     WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT = 3600  # 1 hour
     WTF_CSRF_SECRET_KEY = os.environ.get('WTF_CSRF_SECRET_KEY') or secrets.token_hex(32)
     
-    # Baza danych
+    # Database Configuration
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
+
         'pool_size': 10,
         'pool_recycle': 3600,
         'pool_pre_ping': True,
@@ -22,26 +27,23 @@ class BaseConfig:
     # Cache Redis/Memory (for future implementation)
     CACHE_TYPE = 'simple'  # Can be changed to 'redis' later
     CACHE_DEFAULT_TIMEOUT = 300
-    
-    # Sesja
-    PERMANENT_SESSION_LIFETIME = timedelta(days=1)
-    SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax'
-    
-    # Upload
-    UPLOAD_FOLDER = 'static/uploads'
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
-    
-    # Logowanie
-    LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    LOG_LEVEL = 'INFO'
-    LOG_FILE = 'app.log'
-    LOG_MAX_SIZE = 10 * 1024 * 1024  # 10MB
-    LOG_BACKUP_COUNT = 5
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'pool_size': 10,
+        'max_overflow': 0
+    }
 
-    # Rate limiting
-    LOGIN_RATE_LIMIT = '5 per minute'
+    SESSION_COOKIE_NAME = 'football_session'
+    
+    # Security Headers
+    SEND_FILE_MAX_AGE_DEFAULT = 31536000  # 1 year
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
+    MAX_FORM_MEMORY_SIZE = 2 * 1024 * 1024  # 2MB
+    MAX_FORM_PARTS = 1000
+    
+    # Trusted hosts for security
+    TRUSTED_HOSTS = os.environ.get('TRUSTED_HOSTS', '').split(',') if os.environ.get('TRUSTED_HOSTS') else []
+
     API_RATE_LIMIT = '100 per minute'
     RATELIMIT_STORAGE_URL = 'memory://'  # Can be changed to Redis later
     
@@ -53,28 +55,46 @@ class BaseConfig:
     DEFAULT_PAGE_SIZE = 20
     MAX_PAGE_SIZE = 100
 
-class DevelopmentConfig(BaseConfig):
-    DEBUG = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///football_dev.db'
-    SESSION_COOKIE_SECURE = False
-    LOG_LEVEL = 'DEBUG'
-
-class TestingConfig(BaseConfig):
-    TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///football_test.db'
-    WTF_CSRF_ENABLED = False
-    SESSION_COOKIE_SECURE = False
-    LOG_LEVEL = 'DEBUG'
-
-class ProductionConfig(BaseConfig):
-    DEBUG = False
-    TESTING = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///football.db'
-    LOG_LEVEL = 'WARNING'
-
-config = {
-    'development': DevelopmentConfig,
-    'testing': TestingConfig,
-    'production': ProductionConfig,
-    'default': DevelopmentConfig
-} 
+    API_RATE_LIMIT = '1000 per hour'
+    
+    # Caching Configuration
+    CACHE_TYPE = 'redis'
+    CACHE_REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    CACHE_DEFAULT_TIMEOUT = 300
+    CACHE_KEY_PREFIX = 'football_app:'
+    
+    # Email Configuration
+    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'localhost')
+    MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
+    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', 'on', '1']
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    MAIL_SUBJECT_PREFIX = '[Football Manager] '
+    MAIL_SENDER = os.environ.get('MAIL_SENDER', 'noreply@footballmanager.com')
+    
+    # Timezone Configuration
+    TIMEZONE = 'Europe/Warsaw'
+    
+    # API Configuration
+    API_VERSION = 'v1'
+    API_TITLE = 'Football Manager API'
+    
+    # Modern Performance Settings
+    TEMPLATES_AUTO_RELOAD = False
+    EXPLAIN_TEMPLATE_LOADING = False
+    
+    # WebSocket Configuration
+    SOCKETIO_ASYNC_MODE = 'eventlet'
+    SOCKETIO_PING_TIMEOUT = 60
+    SOCKETIO_PING_INTERVAL = 25
+    
+    # Feature Flags
+    ENABLE_REAL_TIME_UPDATES = True
+    ENABLE_PUSH_NOTIFICATIONS = True
+    ENABLE_DARK_MODE = True
+    ENABLE_PWA = True
+    
+    @staticmethod
+    def init_app(app):
+        """Initialize application with configuration."""
+        pass
