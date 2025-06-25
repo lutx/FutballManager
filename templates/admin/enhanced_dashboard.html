@@ -1,0 +1,530 @@
+{% extends "base.html" %}
+
+{% block title %}Enhanced Admin Dashboard - Football Manager{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-responsive.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.44.0/dist/apexcharts.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" data-page="dashboard" data-live-matches="{{ live_matches | map(attribute='id') | list | join(',') }}">
+    <!-- Connection Status Indicator -->
+    <div class="connection-status position-fixed top-0 end-0 m-3" style="z-index: 1040;">
+        <div class="d-flex align-items-center gap-2 px-3 py-2 bg-white border rounded-pill shadow-sm">
+            <i class="bi bi-wifi text-success"></i>
+            <span class="status-text small fw-medium">Connected</span>
+        </div>
+    </div>
+
+    <!-- Page Header with Controls -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                    <h1 class="mb-1">
+                        <i class="bi bi-speedometer2 me-2 text-primary"></i>
+                        Enhanced Dashboard
+                    </h1>
+                    <p class="text-muted mb-0">Real-time tournament management with advanced analytics</p>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <!-- Sound Toggle -->
+                    <button class="btn btn-outline-secondary" id="sound-toggle" 
+                            onclick="window.enhancedRealTime?.toggleSound()" 
+                            title="Toggle Sound">
+                        <i class="bi bi-volume-up"></i>
+                    </button>
+                    
+                    <!-- Theme Toggle -->
+                    <button class="btn btn-outline-secondary" id="theme-toggle" 
+                            title="Toggle Theme">
+                        <i class="bi bi-moon-fill"></i>
+                    </button>
+                    
+                    <!-- Refresh Data -->
+                    <button class="btn btn-outline-primary" onclick="location.reload()" 
+                            title="Refresh Data">
+                        <i class="bi bi-arrow-clockwise me-1"></i>
+                        <span class="d-none d-md-inline">Refresh</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Filters Panel -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div id="advanced-filters" data-endpoint="/api/dashboard-filtered-data"></div>
+        </div>
+    </div>
+
+    <!-- Dashboard Stats Grid with Real-time Updates -->
+    <div class="row mb-4" data-reload="dashboard-stats">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <i class="bi bi-trophy-fill text-warning fs-1 me-2"></i>
+                        <div>
+                            <h2 class="mb-0 team-stat" data-stat-type="total_tournaments">{{ stats.total_tournaments }}</h2>
+                            <small class="text-muted">Active Tournaments</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <i class="bi bi-calendar-event text-primary fs-1 me-2"></i>
+                        <div>
+                            <h2 class="mb-0 team-stat" data-stat-type="total_matches">{{ stats.total_matches }}</h2>
+                            <small class="text-muted">Total Matches</small>
+                        </div>
+                    </div>
+                    <div class="small text-success">
+                        <span class="team-stat" data-stat-type="live_matches">{{ stats.live_matches }}</span> Live Now
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <i class="bi bi-people-fill text-info fs-1 me-2"></i>
+                        <div>
+                            <h2 class="mb-0 team-stat" data-stat-type="total_teams">{{ stats.total_teams }}</h2>
+                            <small class="text-muted">Registered Teams</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <i class="bi bi-graph-up text-success fs-1 me-2"></i>
+                        <div>
+                            <h2 class="mb-0 team-stat" data-stat-type="total_goals">{{ stats.total_goals }}</h2>
+                            <small class="text-muted">Goals Scored</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Charts Section -->
+    <div class="row mb-4">
+        <!-- Tournament Progress Chart -->
+        <div class="col-lg-8 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-graph-up me-2"></i>
+                        Tournament Progress
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="height: 350px;">
+                        <canvas id="tournament-progress-chart" 
+                                data-chart-type="tournament-progress"
+                                data-chart-data='{{ chart_data.tournament_progress | tojson }}'>
+                        </canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Score Distribution Chart -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-pie-chart me-2"></i>
+                        Score Distribution
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="height: 350px;">
+                        <canvas id="score-distribution-chart"
+                                data-chart-type="score-distribution"
+                                data-chart-data='{{ chart_data.score_distribution | tojson }}'>
+                        </canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Team Performance & Match Activity Charts -->
+    <div class="row mb-4">
+        <!-- Team Performance Radar Chart -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-radar me-2"></i>
+                        Top Teams Performance
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="height: 350px;">
+                        <canvas id="team-performance-chart"
+                                data-chart-type="team-performance"
+                                data-chart-data='{{ chart_data.team_performance | tojson }}'>
+                        </canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Match Activity Heatmap -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-grid-3x3 me-2"></i>
+                        Match Activity Heatmap
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="height: 350px;">
+                        <div id="match-activity-heatmap"
+                             data-chart-type="match-activity"
+                             data-chart-data='{{ chart_data.match_activity | tojson }}'>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Matches Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-broadcast text-danger me-2"></i>
+                        Live Matches
+                        <span class="badge bg-danger ms-2">{{ live_matches|length }}</span>
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="window.enhancedRealTime?.subscribe('all_matches')">
+                            <i class="bi bi-eye me-1"></i>Watch All
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if live_matches %}
+                        <div class="row" data-reload="live-matches">
+                            {% for match in live_matches %}
+                                <div class="col-lg-6 mb-3" data-match-id="{{ match.id }}">
+                                    <div class="card border-danger">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div class="flex-grow-1">
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <h6 class="mb-0">{{ match.team1.name }}</h6>
+                                                        <div class="score-display fw-bold fs-4" data-team1-score="{{ match.team1_score }}" data-team2-score="{{ match.team2_score }}">
+                                                            {{ match.team1_score }} - {{ match.team2_score }}
+                                                        </div>
+                                                        <h6 class="mb-0">{{ match.team2.name }}</h6>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <small class="text-muted">{{ match.tournament.name }}</small>
+                                                        <span class="match-status badge bg-danger">Live</span>
+                                                        <small class="text-muted">{{ match.match_time.strftime('%H:%M') }}</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Live Commentary -->
+                                            <div class="mt-3">
+                                                <div class="small fw-bold mb-2">Live Commentary:</div>
+                                                <div id="commentary-{{ match.id }}" class="commentary-container" style="max-height: 100px; overflow-y: auto;">
+                                                    <!-- Commentary items will be added here via JavaScript -->
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Match Controls -->
+                                            <div class="mt-3 d-flex gap-2">
+                                                <button class="btn btn-sm btn-success" 
+                                                        data-action="join-match" 
+                                                        data-match-id="{{ match.id }}">
+                                                    <i class="bi bi-eye me-1"></i>Watch
+                                                </button>
+                                                <button class="btn btn-sm btn-primary"
+                                                        onclick="window.open('/admin/match/{{ match.id }}/manage', '_blank')">
+                                                    <i class="bi bi-gear me-1"></i>Manage
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-broadcast text-muted fs-1"></i>
+                            <p class="text-muted mt-2">No live matches at the moment</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Responsive Tables Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-calendar-week me-2"></i>
+                        Upcoming Matches
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive-mobile">
+                        <table class="table table-responsive-stack">
+                            <thead>
+                                <tr>
+                                    <th>Match</th>
+                                    <th>Tournament</th>
+                                    <th>Date & Time</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for match in upcoming_matches[:10] %}
+                                <tr data-match-id="{{ match.id }}">
+                                    <td data-label="Match">
+                                        <div class="d-flex align-items-center">
+                                            <div>
+                                                <div class="fw-bold">{{ match.team1.name }} vs {{ match.team2.name }}</div>
+                                                <small class="text-muted">{{ match.tournament.name }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td data-label="Tournament">{{ match.tournament.name }}</td>
+                                    <td data-label="Date & Time">
+                                        <div>{{ match.match_time.strftime('%Y-%m-%d') }}</div>
+                                        <small class="text-muted">{{ match.match_time.strftime('%H:%M') }}</small>
+                                    </td>
+                                    <td data-label="Status">
+                                        <span class="match-status badge bg-secondary">{{ match.status|title }}</span>
+                                    </td>
+                                    <td data-label="Actions">
+                                        <div class="d-flex gap-1 flex-wrap">
+                                            <button class="btn btn-sm btn-success" 
+                                                    data-action="start-match" 
+                                                    data-match-id="{{ match.id }}">
+                                                <i class="bi bi-play-fill"></i>
+                                                <span class="d-none d-md-inline ms-1">Start</span>
+                                            </button>
+                                            <button class="btn btn-sm btn-primary"
+                                                    onclick="window.open('/admin/match/{{ match.id }}/edit', '_blank')">
+                                                <i class="bi bi-pencil"></i>
+                                                <span class="d-none d-md-inline ms-1">Edit</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Navigation (shown only on mobile) -->
+    <nav class="navbar-mobile d-md-none">
+        <div class="nav-mobile-items">
+            <a href="{{ url_for('admin.dashboard') }}" class="nav-mobile-item active">
+                <i class="bi bi-speedometer2"></i>
+                Dashboard
+            </a>
+            <a href="{{ url_for('admin.manage_years') }}" class="nav-mobile-item">
+                <i class="bi bi-calendar3"></i>
+                Years
+            </a>
+            <a href="{{ url_for('admin.tournaments') }}" class="nav-mobile-item">
+                <i class="bi bi-trophy"></i>
+                Tournaments
+            </a>
+            <a href="{{ url_for('admin.stats') }}" class="nav-mobile-item">
+                <i class="bi bi-graph-up"></i>
+                Stats
+            </a>
+            <a href="{{ url_for('admin.view_logs') }}" class="nav-mobile-item">
+                <i class="bi bi-journal-text"></i>
+                Logs
+            </a>
+        </div>
+    </nav>
+</div>
+
+<!-- Loading Skeleton (shown while data is loading) -->
+<div id="loading-skeleton" class="d-none">
+    <div class="container-fluid">
+        <div class="row mb-4">
+            <div class="col-md-3 col-sm-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="skeleton skeleton-text"></div>
+                        <div class="skeleton skeleton-text w-75"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+    <!-- Load our custom JavaScript modules -->
+    <script src="{{ url_for('static', filename='js/interactive-charts.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/advanced-filters.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/realtime-enhanced.js') }}" defer></script>
+    
+    <!-- Initialize dashboard-specific functionality -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Subscribe to real-time updates for dashboard
+            if (window.enhancedRealTime) {
+                window.enhancedRealTime.subscribe('dashboard_updates');
+                window.enhancedRealTime.subscribe('live_matches');
+                
+                // Subscribe to all live matches
+                const dashboardContainer = document.querySelector('[data-page="dashboard"]');
+                const liveMatchIds = dashboardContainer.dataset.liveMatches;
+                if (liveMatchIds) {
+                    liveMatchIds.split(',').forEach(function(matchId) {
+                        if (matchId.trim()) {
+                            window.enhancedRealTime.subscribe('match_updates', parseInt(matchId.trim()));
+                        }
+                    });
+                }
+            }
+            
+            // Listen for filter changes and update charts
+            document.addEventListener('filtersApplied', function(event) {
+                const filteredData = event.detail.data;
+                
+                // Update charts with filtered data
+                if (window.footballCharts) {
+                    // This would update charts based on filtered data
+                    console.log('Updating charts with filtered data:', filteredData);
+                }
+            });
+            
+            // Setup mobile gestures
+            setupMobileGestures();
+            
+            // Auto-refresh data every 30 seconds
+            setInterval(() => {
+                if (!document.hidden) {
+                    refreshDashboardData();
+                }
+            }, 30000);
+        });
+        
+        function setupMobileGestures() {
+            let touchStartY = 0;
+            let pullToRefreshElement = null;
+            
+            document.addEventListener('touchstart', (e) => {
+                touchStartY = e.touches[0].clientY;
+                
+                // Create pull-to-refresh indicator if at top of page
+                if (window.scrollY === 0) {
+                    pullToRefreshElement = document.createElement('div');
+                    pullToRefreshElement.className = 'pull-to-refresh';
+                    pullToRefreshElement.innerHTML = '<i class="bi bi-arrow-down-circle me-2"></i>Pull to refresh';
+                    document.body.appendChild(pullToRefreshElement);
+                }
+            });
+            
+            document.addEventListener('touchmove', (e) => {
+                if (pullToRefreshElement && window.scrollY === 0) {
+                    const touchY = e.touches[0].clientY;
+                    const pullDistance = touchY - touchStartY;
+                    
+                    if (pullDistance > 100) {
+                        pullToRefreshElement.classList.add('active');
+                        pullToRefreshElement.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Release to refresh';
+                    }
+                }
+            });
+            
+            document.addEventListener('touchend', (e) => {
+                if (pullToRefreshElement) {
+                    if (pullToRefreshElement.classList.contains('active')) {
+                        // Trigger refresh
+                        location.reload();
+                    }
+                    pullToRefreshElement.remove();
+                    pullToRefreshElement = null;
+                }
+            });
+        }
+        
+        async function refreshDashboardData() {
+            try {
+                const response = await fetch('/api/dashboard-stats');
+                const data = await response.json();
+                
+                // Update stats displays
+                Object.entries(data.stats).forEach(([key, value]) => {
+                    const elements = document.querySelectorAll(`[data-stat-type="${key}"]`);
+                    elements.forEach(element => {
+                        if (window.enhancedRealTime) {
+                            window.enhancedRealTime.animateNumberChange(element, value);
+                        } else {
+                            element.textContent = value;
+                        }
+                    });
+                });
+                
+            } catch (error) {
+                console.error('Failed to refresh dashboard data:', error);
+            }
+        }
+        
+        // Handle theme toggle
+        document.getElementById('theme-toggle')?.addEventListener('click', function() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme') || 'auto';
+            
+            const themes = ['light', 'dark', 'auto'];
+            const currentIndex = themes.indexOf(currentTheme);
+            const nextTheme = themes[(currentIndex + 1) % themes.length];
+            
+            html.setAttribute('data-theme', nextTheme);
+            localStorage.setItem('theme', nextTheme);
+            
+            // Update icon
+            const icons = {
+                light: 'bi-sun-fill',
+                dark: 'bi-moon-fill', 
+                auto: 'bi-circle-half'
+            };
+            this.querySelector('i').className = `bi ${icons[nextTheme]}`;
+        });
+    </script>
+{% endblock %}
